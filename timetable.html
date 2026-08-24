@@ -1,0 +1,162 @@
+<div id="aice-timetable-root" style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #ffffff; color: #333333; border: 1px solid #e1dfdd; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); max-width: 100%; margin: 10px auto; overflow: hidden;">
+    
+    <!-- 顶部控制栏 -->
+    <div style="background-color: #f3f2f1; padding: 10px 15px; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; border-bottom: 1px solid #e1dfdd; gap: 10px;">
+        <div style="display: flex; align-items: center; gap: 6px;">
+            <div style="display: inline-flex; border-radius: 4px; overflow: hidden; border: 1px solid #8a8886;">
+                <button type="button" id="aice-prev-btn" style="background: #10324a; color: white; border: none; padding: 4px 10px; cursor: pointer; font-size: 12px;">&lt;</button>
+                <button type="button" id="aice-next-btn" style="background: #10324a; color: white; border: none; padding: 4px 10px; cursor: pointer; font-size: 12px; border-left: 1px solid #fff;">&gt;</button>
+            </div>
+            <button type="button" id="aice-today-btn" style="background: #10324a; color: white; border: none; padding: 5px 10px; cursor: pointer; border-radius: 4px; font-size: 12px;">today</button>
+            <button type="button" id="aice-weekend-btn" style="background: #10324a; color: white; border: none; padding: 5px 10px; cursor: pointer; border-radius: 4px; font-size: 12px;">Show Weekends</button>
+        </div>
+
+        <div id="aice-date-title" style="font-weight: bold; font-size: 14px; color: #201f1e; text-align: center; flex-grow: 1;">
+            Loading Timetable...
+        </div>
+
+        <div style="display: flex; align-items: center; gap: 10px;">
+            <div style="background: #10324a; padding: 2px; border-radius: 4px; display: flex; color: white; font-size: 11px;">
+                <span style="padding: 3px 8px; background: rgba(255,255,255,0.2); border-radius: 2px; text-decoration: underline;">semester 1</span>
+                <span style="padding: 3px 8px; cursor: pointer;">semester 2</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- 日历滚动视窗 -->
+    <div style="max-height: 650px; overflow-y: auto; overflow-x: auto; position: relative;">
+        <div style="min-width: 850px;">
+            <!-- 表头：星期与日期 -->
+            <div id="aice-header-row" style="display: grid; background-color: #faf9f8; border-bottom: 1px solid #e1dfdd; position: sticky; top: 0; z-index: 20;"></div>
+
+            <!-- 主体网格区：时间轴 + 日程列 -->
+            <div id="aice-grid-body" style="display: grid; position: relative;">
+                <div id="aice-time-axis" style="background-color: #faf9f8; border-right: 1px solid #e1dfdd;"></div>
+                <div id="aice-days-wrapper" style="display: contents;"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 使用绝对安全的原生事件监听，不依赖内联 onclick -->
+<script>
+document.addEventListener("DOMContentLoaded", function() {
+    initAiceApp();
+});
+
+// 如果 DOM 已经加载完成，直接触发
+if (document.readyState === "complete" || document.readyState === "interactive") {
+    setTimeout(initAiceApp, 100);
+}
+
+function initAiceApp() {
+    const timetableEvents = [
+        { dayIndex: 1, startTime: "10:00", endTime: "12:00", code: "AICE2001 C", title: "Scientific Computing", room: "32 / 3027 ECS Teaching Lab", color: "#c3d66b", textColor: "#1f1f1f", isDraft: true },
+        { dayIndex: 1, startTime: "12:00", endTime: "14:00", code: "FEEG6050 P", title: "Robotics Fundamentals", room: "32 / 3027 ECS Teaching Lab", color: "#9e6b9e", textColor: "#ffffff", isDraft: true },
+        { dayIndex: 1, startTime: "14:00", endTime: "17:00", code: "AICE2003 Lab", title: "Electronics", room: "32 / 3027 ECS Teaching Lab", color: "#9e6b9e", textColor: "#ffffff", isDraft: true },
+        { dayIndex: 2, startTime: "10:00", endTime: "14:00", code: "AICE Lab", title: "AICE Lab Programme Year 1", room: "32 / 3027 ECS Teaching Lab", color: "#9e6b9e", textColor: "#ffffff", isDraft: true },
+        { dayIndex: 4, startTime: "10:00", endTime: "15:00", code: "AICE Lab", title: "AICE Lab Programme Year 1", room: "32 / 3027 ECS Teaching Lab", color: "#9e6b9e", textColor: "#ffffff", isDraft: true },
+        { dayIndex: 5, startTime: "14:00", endTime: "16:00", code: "AICE2002 C", title: "AI and Learning Machines", room: "32 / 3027 ECS Teaching Lab", color: "#90baf0", textColor: "#1f1f1f", isDraft: true }
+    ];
+
+    let includeWeekends = false;
+    let baseDate = new Date(2026, 8, 28);
+
+    const timeAxisEl = document.getElementById('aice-time-axis');
+    if (!timeAxisEl) return; // 防止重复加载或节点未找到
+
+    // 渲染时间轴
+    let axisHtml = '';
+    for (let h = 8; h < 19; h++) {
+        let timeStr = (h < 10 ? '0' + h : h) + ':00';
+        axisHtml += `<div style="height: 60px; border-bottom: 1px solid #e1dfdd; border-right: 1px solid #e1dfdd; text-align: right; padding-right: 8px; font-size: 11px; color: #605e5c; line-height: 60px;">${timeStr}</div>`;
+    }
+    timeAxisEl.innerHTML = axisHtml;
+
+    function refresh() {
+        const totalDays = includeWeekends ? 7 : 5;
+        const headerRow = document.getElementById('aice-header-row');
+        const gridBody = document.getElementById('aice-grid-body');
+        
+        const gridTemplate = `60px repeat(${totalDays}, minmax(140px, 1fr))`;
+        headerRow.style.gridTemplateColumns = gridTemplate;
+        gridBody.style.gridTemplateColumns = gridTemplate;
+
+        // 表头日期
+        let headerHtml = `<div style="padding: 8px; text-align: center; font-size: 11px; font-weight: bold; color: #a19f9d; border-right: 1px solid #e1dfdd; display: flex; align-items: center; justify-content: center;">W2</div>`;
+        const startOfWeek = new Date(baseDate);
+        const dayOfWeek = startOfWeek.getDay();
+        const diffToMon = startOfWeek.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1);
+        startOfWeek.setDate(diffToMon);
+
+        const daysNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+        for (let i = 0; i < totalDays; i++) {
+            let curr = new Date(startOfWeek);
+            curr.setDate(startOfWeek.getDate() + i);
+            let dateLabel = `${daysNames[i]} ${curr.getDate()}th ${curr.toLocaleDateString('en-US', { month: 'short' })}`;
+            headerHtml += `<div style="padding: 8px; text-align: center; font-size: 12px; font-weight: 600; color: #323130; border-right: 1px solid #e1dfdd;">${dateLabel}</div>`;
+        }
+        headerRow.innerHTML = headerHtml;
+
+        // 网格列
+        const wrapper = document.getElementById('aice-days-wrapper');
+        let colsHtml = '';
+        for (let i = 0; i < totalDays; i++) {
+            colsHtml += `<div class="aice-day-col" data-day-index="${i + 1}" style="position: relative; border-bottom: 1px solid #e1dfdd; border-right: 1px solid #e1dfdd; height: 660px; background-image: repeating-linear-gradient(0deg, transparent, transparent 59px, #f3f2f1 59px, #f3f2f1 60px);"></div>`;
+        }
+        wrapper.innerHTML = colsHtml;
+
+        // 渲染课程卡片
+        timetableEvents.forEach(ev => {
+            if (ev.dayIndex > totalDays) return;
+            const targetCol = wrapper.querySelector(`.aice-day-col[data-day-index="${ev.dayIndex}"]`);
+            if (!targetCol) return;
+
+            const [sh, sm] = ev.startTime.split(':').map(Number);
+            const [eh, em] = ev.endTime.split(':').map(Number);
+            const topPx = ((sh - 8) * 60 + sm);
+            const heightPx = ((eh - 8) * 60 + em) - topPx;
+
+            const card = document.createElement('div');
+            card.style.cssText = `position: absolute; top: ${topPx}px; left: 4px; right: 4px; height: ${heightPx}px; background-color: ${ev.color}; color: ${ev.textColor}; border-radius: 4px; padding: 6px 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); overflow: hidden; box-sizing: border-box; display: flex; flex-direction: column; justify-content: space-between;`;
+
+            if (ev.isDraft) {
+                card.innerHTML = `
+                    <div style="position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; font-weight: bold; color: rgba(0,0,0,0.06); pointer-events: none; text-transform: lowercase; z-index: 1;">draft</div>
+                    <div style="position: relative; z-index: 2;">
+                        <div style="font-size: 11px; font-weight: bold; line-height: 1.2;">${ev.code} - ${ev.title}</div>
+                        <div style="font-size: 10px; opacity: 0.9; margin-top: 2px;">${ev.room}</div>
+                    </div>
+                `;
+            }
+            targetCol.appendChild(card);
+        });
+
+        // 更新日期标题
+        const end = new Date(startOfWeek);
+        end.setDate(startOfWeek.getDate() + (totalDays - 1));
+        document.getElementById('aice-date-title').innerText = `${startOfWeek.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – ${end.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`;
+    }
+
+    // 绑定按钮事件（用 addEventListener 代替内联 onclick，避免 Power Pages 冲突）
+    document.getElementById('aice-prev-btn').onclick = function() {
+        baseDate.setDate(baseDate.getDate() - 7);
+        refresh();
+    };
+    document.getElementById('aice-next-btn').onclick = function() {
+        baseDate.setDate(baseDate.getDate() + 7);
+        refresh();
+    };
+    document.getElementById('aice-today-btn').onclick = function() {
+        baseDate = new Date();
+        refresh();
+    };
+    document.getElementById('aice-weekend-btn').onclick = function() {
+        includeWeekends = !includeWeekends;
+        this.innerText = includeWeekends ? "Hide Weekends" : "Show Weekends";
+        refresh();
+    };
+
+    refresh();
+}
+</script>
