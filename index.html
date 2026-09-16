@@ -17,8 +17,8 @@
 
         <div style="display: flex; align-items: center; gap: 10px;">
             <div style="background: #10324a; padding: 2px; border-radius: 4px; display: flex; color: white; font-size: 11px;">
-                <span style="padding: 3px 8px; background: rgba(255,255,255,0.2); border-radius: 2px; text-decoration: underline;">semester 1</span>
-                <span style="padding: 3px 8px; cursor: pointer;">semester 2</span>
+                <span id="sem1-btn" style="padding: 3px 8px; background: rgba(255,255,255,0.2); border-radius: 2px; cursor: pointer;">semester S1</span>
+                <span id="sem2-btn" style="padding: 3px 8px; cursor: pointer;">semester S2</span>
             </div>
         </div>
     </div>
@@ -64,14 +64,14 @@ async function initAiceApp() {
             if (userConfig.defaultSemester) globalConfig.defaultSemester = String(userConfig.defaultSemester).trim();
         }
         
-        // 读取你当前正确的 CSV 文件名
-        const csvRes = await fetch('AICE Timetable AY2627 (1).csv');
+        // 直接请求简化后的文件名 timetable.csv
+        const csvRes = await fetch('timetable.csv');
         if (csvRes.ok) {
             const csvText = await csvRes.text();
             rawCsvData = parseCSV(csvText);
-            console.log("CSV 加载成功，记录数:", rawCsvData.length);
+            console.log("CSV 加载成功，总行数:", rawCsvData.length);
         } else {
-            console.error("无法加载 CSV 文件");
+            console.error("无法加载 timetable.csv，请检查文件名是否已修改");
         }
 
         let parsedDate = new Date(globalConfig.week1StartDate);
@@ -134,16 +134,16 @@ async function initAiceApp() {
         }
         wrapper.innerHTML = colsHtml;
 
-        rawCsvData.forEach((row) => {
-            // 匹配 Semester (例如 "S1")
+        // 颜色池，让不同的课卡片好看
+        const colors = ["#c3d66b", "#9e6b9e", "#90baf0", "#f0baf0", "#f0d090"];
+
+        rawCsvData.forEach((row, idx) => {
             const sem = row['Semester'] ? row['Semester'].trim() : "";
             if (sem !== globalConfig.defaultSemester) return;
             
-            // 检查这一周开关是否为 1 (代表本周有这门课)
             const weekVal = row[weekKey] ? String(row[weekKey]).trim() : "0";
             if (weekVal !== "1") return;
 
-            // 匹配星期 (Monday, Tuesday, Wednesday, Thursday, Friday...)
             const dayStr = row['Day of Week'] ? row['Day of Week'].trim().toLowerCase() : '';
             const dayMap = { 
                 'monday': 1, 'mon': 1, 
@@ -160,25 +160,25 @@ async function initAiceApp() {
             const targetCol = wrapper.querySelector(`.aice-day-col[data-day-index="${dIndex}"]`);
             if (!targetCol) return;
 
-            // 获取行内自带的开始时间和结束时间
             const sh = Number(row['Start Time']);
             const eh = Number(row['End Time']);
             if (isNaN(sh) || isNaN(eh)) return;
 
             const moduleCode = row['Module'] || '';
             const moduleName = row['Name'] || '';
-            const roomPart = row['Programmes'] || "ECS Lab";
+            const roomPart = row['Programmes'] || "32 / 3027 ECS Teaching Lab";
+            const bgColor = colors[idx % colors.length];
 
             const topPx = (sh - 8) * 60;
             const heightPx = (eh - sh) * 60;
 
             const card = document.createElement('div');
-            card.style.cssText = `position: absolute; top: ${topPx}px; left: 4px; right: 4px; height: ${heightPx}px; background-color: #c3d66b; color: #1f1f1f; border-radius: 4px; padding: 6px 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); overflow: hidden; box-sizing: border-box; display: flex; flex-direction: column; justify-content: space-between;`;
+            card.style.cssText = `position: absolute; top: ${topPx}px; left: 4px; right: 4px; height: ${heightPx}px; background-color: ${bgColor}; color: #1f1f1f; border-radius: 4px; padding: 6px 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); overflow: hidden; box-sizing: border-box; display: flex; flex-direction: column; justify-content: space-between;`;
 
             card.innerHTML = `
                 <div style="position: relative; z-index: 2;">
                     <div style="font-size: 11px; font-weight: bold; line-height: 1.2;">${moduleCode} - ${moduleName}</div>
-                    <div style="font-size: 10px; opacity: 0.9; margin-top: 2px;">${roomPart} (${row['Lab Type'] || ''})</div>
+                    <div style="font-size: 10px; opacity: 0.9; margin-top: 2px;">${roomPart}</div>
                 </div>
             `;
             targetCol.appendChild(card);
@@ -214,6 +214,20 @@ async function initAiceApp() {
         }
         return result;
     }
+
+    // 绑定学期切换按钮
+    document.getElementById('sem1-btn').onclick = function() {
+        globalConfig.defaultSemester = "S1";
+        this.style.background = "rgba(255,255,255,0.2)";
+        document.getElementById('sem2-btn').style.background = "transparent";
+        refresh();
+    };
+    document.getElementById('sem2-btn').onclick = function() {
+        globalConfig.defaultSemester = "S2";
+        this.style.background = "rgba(255,255,255,0.2)";
+        document.getElementById('sem1-btn').style.background = "transparent";
+        refresh();
+    };
 
     document.getElementById('aice-prev-btn').onclick = function() {
         baseDate.setDate(baseDate.getDate() - 7);
