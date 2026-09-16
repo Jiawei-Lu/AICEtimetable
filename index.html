@@ -63,8 +63,8 @@ async function initAiceApp() {
         const csvText = await csvRes.text();
         rawCsvData = parseCSV(csvText);
 
-        // 初始化基准日期为配置中的 week0 或当前日期
-        baseDate = new Date(globalConfig.week0StartDate);
+        // 初始化基准日期为配置中的 week1 开始时间
+        baseDate = new Date(globalConfig.week1StartDate);
     } catch (e) {
         console.error("加载配置文件或数据失败，请检查路径:", e);
         document.getElementById('aice-date-title').innerText = "Data Load Failed";
@@ -91,33 +91,22 @@ async function initAiceApp() {
         headerRow.style.gridTemplateColumns = gridTemplate;
         gridBody.style.gridTemplateColumns = gridTemplate;
 
-        // 计算当前是第几周 (基于 week0StartDate)
+        // 获取当前显示的星期一
         const startOfWeek = new Date(baseDate);
         const dayOfWeek = startOfWeek.getDay();
         const diffToMon = startOfWeek.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1);
         startOfWeek.setDate(diffToMon);
 
-        // 计算周数代号（例如 SW01, SW02...）
-        // 1. 读取配置中的 week1 开始时间
+        // 基于 week1StartDate 计算当前是第几周
         const weekOneDate = new Date(globalConfig.week1StartDate);
-        
-        // 2. 计算当前显示的星期一与 week1 之间相差多少天
         const diffTime = startOfWeek.getTime() - weekOneDate.getTime();
         const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
         
-        // 3. 算出当前是第几周 (差值除以 7 向下取整，再 +1)
-        // 例如：差 0~6 天属于 W1，差 -7~-1 天属于 W0（或负数周）
         let currentWeekNum = Math.floor(diffDays / 7) + 1;
-        
-        // 如果开学前想显示 W0 或负数可以保留，这里限制如果小于1则最少显示 W0 或 W1，你可以按需调整
-        // 确保能对应到 CSV 里的 SW01, SW02 等（若小于1可以特殊处理，这里用 Math.max(0, ...) 允许显示 W0）
-        currentWeekNum = Math.max(0, currentWeekNum); 
+        currentWeekNum = Math.max(1, currentWeekNum); // 小于第1周时默认显示第1周（或按需调整）
 
-        // 对应 CSV 的列名格式 (例如 W1 对应 SW01, W0 对应 SW00 或特殊处理)
+        // 对应 CSV 的列名格式 (例如 W1 对应 SW01)
         const weekKey = "SW" + (currentWeekNum < 10 ? "0" + currentWeekNum : currentWeekNum);
-
-        // 渲染表头日期（如果周数是 0，可以显示 W0，大于0显示 W1, W2...）
-        let headerHtml = `<div style="padding: 8px; text-align: center; font-size: 11px; font-weight: bold; color: #a19f9d; border-right: 1px solid #e1dfdd; display: flex; align-items: center; justify-content: center;">W${currentWeekNum}</div>`;
 
         // 渲染表头日期
         let headerHtml = `<div style="padding: 8px; text-align: center; font-size: 11px; font-weight: bold; color: #a19f9d; border-right: 1px solid #e1dfdd; display: flex; align-items: center; justify-content: center;">W${currentWeekNum}</div>`;
@@ -140,12 +129,10 @@ async function initAiceApp() {
 
         // 从 CSV 数据中过滤出当前周、当前学期的课程并渲染
         rawCsvData.forEach(row => {
-            // 假设 CSV 列名匹配
             if (row.Semester !== globalConfig.defaultSemester) return;
             const weekCellContent = row[weekKey];
-            if (!weekCellContent || weekCellContent.trim() === "") return; // 本周无此课
+            if (!weekCellContent || weekCellContent.trim() === "") return;
 
-            // 解析 Day of Week 映射成数字 (Mon=1, Tue=2...)
             const dayMap = { 'Monday': 1, 'Tuesday': 2, 'Wednesday': 3, 'Thursday': 4, 'Friday': 5, 'Saturday': 6, 'Sunday': 7 };
             const dIndex = dayMap[row['Day of Week']];
             if (!dIndex || dIndex > totalDays) return;
@@ -153,9 +140,8 @@ async function initAiceApp() {
             const targetCol = wrapper.querySelector(`.aice-day-col[data-day-index="${dIndex}"]`);
             if (!targetCol) return;
 
-            // 假设表格格子格式如 "10:00-12:00" 或者你可以在这里自定义解析规则
-            // 这里简单假设单元格包含时间，例如 "10:00-12:00"
-            const timePart = weekCellContent.split('|')[0].trim(); // 比如 "10:00-12:00"
+            // 假设单元格格式如 "10:00-12:00 | 房间号"
+            const timePart = weekCellContent.split('|')[0].trim();
             const roomPart = weekCellContent.split('|')[1] || row['Programmes'] || "ECS Lab";
             
             const times = timePart.split('-');
@@ -193,12 +179,11 @@ async function initAiceApp() {
 
         for (let i = 1; i < lines.length; i++) {
             if (!lines[i].trim()) continue;
-            // 处理带引号的 CSV 简单分割
             const currentline = lines[i].split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/);
             const obj = {};
             for (let j = 0; j < headers.length; j++) {
                 let val = currentline[j] ? currentline[j].trim() : '';
-                val = val.replace(/^"|"$/g, ''); // 去除双引号
+                val = val.replace(/^"|"$/g, '');
                 obj[headers[j]] = val;
             }
             result.push(obj);
@@ -216,7 +201,7 @@ async function initAiceApp() {
         refresh();
     };
     document.getElementById('aice-today-btn').onclick = function() {
-        baseDate = new Date(globalConfig.week0StartDate);
+        baseDate = new Date(globalConfig.week1StartDate);
         refresh();
     };
     document.getElementById('aice-weekend-btn').onclick = function() {
