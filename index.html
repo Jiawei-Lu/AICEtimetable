@@ -62,17 +62,15 @@ async function initAiceApp() {
             const userConfig = await configRes.json();
             if (userConfig.week1StartDate) globalConfig.week1StartDate = userConfig.week1StartDate.trim();
             if (userConfig.defaultSemester) globalConfig.defaultSemester = String(userConfig.defaultSemester).trim();
-            console.log("配置加载成功:", globalConfig);
         }
         
-        // 固定请求 AICE-Timetable-AY2627.csv
         const csvRes = await fetch('AICE-Timetable-AY2627.csv');
         if (csvRes.ok) {
             const csvText = await csvRes.text();
             rawCsvData = parseCSV(csvText);
-            console.log("CSV 加载成功，共解析行数:", rawCsvData.length);
+            console.log("CSV 解析成功，有效课程行数:", rawCsvData.length);
         } else {
-            console.error("无法加载 AICE-Timetable-AY2627.csv，请确认仓库中是否存在该文件");
+            console.error("无法加载 AICE-Timetable-AY2627.csv");
         }
 
         let parsedDate = new Date(globalConfig.week1StartDate);
@@ -117,7 +115,6 @@ async function initAiceApp() {
         currentWeekNum = Math.max(1, currentWeekNum);
 
         const weekKey = "SW" + (currentWeekNum < 10 ? "0" + currentWeekNum : currentWeekNum);
-        console.log("当前渲染周期列名:", weekKey);
 
         let headerHtml = `<div style="padding: 8px; text-align: center; font-size: 11px; font-weight: bold; color: #a19f9d; border-right: 1px solid #e1dfdd; display: flex; align-items: center; justify-content: center;">W${currentWeekNum}</div>`;
         const daysNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
@@ -140,11 +137,12 @@ async function initAiceApp() {
         let renderCount = 0;
 
         rawCsvData.forEach((row, idx) => {
-            const sem = row['Semester'] ? row['Semester'].trim() : "";
-            if (sem !== globalConfig.defaultSemester) return;
+            const sem = row['Semester'] ? row['Semester'].trim().toUpperCase() : "";
+            if (sem !== globalConfig.defaultSemester.toUpperCase()) return;
             
-            const weekVal = row[weekKey] ? String(row[weekKey]).trim() : "0";
-            if (weekVal !== "1") return;
+            const weekVal = row[weekKey] !== undefined ? String(row[weekKey]).trim() : "0";
+            // 兼容值为 1、"1" 或非空数字的情况
+            if (weekVal !== "1" && weekVal !== "true") return;
 
             const dayStr = row['Day of Week'] ? row['Day of Week'].trim().toLowerCase() : '';
             const dayMap = { 
@@ -187,7 +185,7 @@ async function initAiceApp() {
             renderCount++;
         });
 
-        console.log(`本周 (W${currentWeekNum}) 成功渲染了 ${renderCount} 节课`);
+        console.log(`[渲染成功] 周次 ${weekKey}: 成功渲染了 ${renderCount} 节课`);
 
         const end = new Date(startOfWeek);
         end.setDate(startOfWeek.getDate() + (totalDays - 1));
@@ -212,7 +210,7 @@ async function initAiceApp() {
             const obj = {};
             for (let j = 0; j < headers.length; j++) {
                 let val = currentline[j] ? currentline[j].trim() : '';
-                val = val.replace(/^"|"$/g, '');
+                val = val.replace(/^"|"$/g, '').replace(/\r$/, '');
                 obj[headers[j]] = val;
             }
             result.push(obj);
