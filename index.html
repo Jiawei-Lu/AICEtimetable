@@ -44,28 +44,37 @@ document.addEventListener("DOMContentLoaded", function() {
     initAiceApp();
 });
 
-// 如果 DOM 已经加载完成，直接触发
 if (document.readyState === "complete" || document.readyState === "interactive") {
     setTimeout(initAiceApp, 100);
 }
 
-function initAiceApp() {
-    const timetableEvents = [
-        { dayIndex: 1, startTime: "10:00", endTime: "12:00", code: "AICE2001 C", title: "Scientific Computing", room: "32 / 3027 ECS Teaching Lab", color: "#c3d66b", textColor: "#1f1f1f", isDraft: true },
-        { dayIndex: 1, startTime: "12:00", endTime: "14:00", code: "FEEG6050 P", title: "Robotics Fundamentals", room: "32 / 3027 ECS Teaching Lab", color: "#9e6b9e", textColor: "#ffffff", isDraft: true },
-        { dayIndex: 1, startTime: "14:00", endTime: "17:00", code: "AICE2003 Lab", title: "Electronics", room: "32 / 3027 ECS Teaching Lab", color: "#9e6b9e", textColor: "#ffffff", isDraft: true },
-        { dayIndex: 2, startTime: "10:00", endTime: "14:00", code: "AICE Lab", title: "AICE Lab Programme Year 1", room: "32 / 3027 ECS Teaching Lab", color: "#9e6b9e", textColor: "#ffffff", isDraft: true },
-        { dayIndex: 4, startTime: "10:00", endTime: "15:00", code: "AICE Lab", title: "AICE Lab Programme Year 1", room: "32 / 3027 ECS Teaching Lab", color: "#9e6b9e", textColor: "#ffffff", isDraft: true },
-        { dayIndex: 5, startTime: "14:00", endTime: "16:00", code: "AICE2002 C", title: "AI and Learning Machines", room: "32 / 3027 ECS Teaching Lab", color: "#90baf0", textColor: "#1f1f1f", isDraft: true }
-    ];
-
+async function initAiceApp() {
+    let globalConfig = {};
+    let rawCsvData = [];
     let includeWeekends = false;
-    let baseDate = new Date(2026, 8, 28);
+    let baseDate = new Date();
+
+    try {
+        // 1. 异步加载配置和 CSV 数据
+        const configRes = await fetch('config.json');
+        globalConfig = await configRes.json();
+        
+        const csvRes = await fetch('timetable.csv');
+        const csvText = await csvRes.text();
+        rawCsvData = parseCSV(csvText);
+
+        // 初始化基准日期为配置中的 week0 或当前日期
+        baseDate = new Date(globalConfig.week0StartDate);
+    } catch (e) {
+        console.error("加载配置文件或数据失败，请检查路径:", e);
+        document.getElementById('aice-date-title').innerText = "Data Load Failed";
+        return;
+    }
 
     const timeAxisEl = document.getElementById('aice-time-axis');
-    if (!timeAxisEl) return; // 防止重复加载或节点未找到
+    if (!timeAxisEl) return;
 
-    // 渲染时间轴
+    // 渲染时间轴 (08:00 - 19:00)
     let axisHtml = '';
     for (let h = 8; h < 19; h++) {
         let timeStr = (h < 10 ? '0' + h : h) + ':00';
@@ -82,13 +91,21 @@ function initAiceApp() {
         headerRow.style.gridTemplateColumns = gridTemplate;
         gridBody.style.gridTemplateColumns = gridTemplate;
 
-        // 表头日期
-        let headerHtml = `<div style="padding: 8px; text-align: center; font-size: 11px; font-weight: bold; color: #a19f9d; border-right: 1px solid #e1dfdd; display: flex; align-items: center; justify-content: center;">W2</div>`;
+        // 计算当前是第几周 (基于 week0StartDate)
         const startOfWeek = new Date(baseDate);
         const dayOfWeek = startOfWeek.getDay();
         const diffToMon = startOfWeek.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1);
         startOfWeek.setDate(diffToMon);
 
+        // 计算周数代号（例如 SW01, SW02...）
+        const weekZeroDate = new Date(globalConfig.week0StartDate);
+        const diffTime = startOfWeek.getTime() - weekZeroDate.getTime();
+        const diffWeeks = Math.round(diffTime / (1000 * 60 * 60 * 24 * 7));
+        const currentWeekNum = Math.max(1, diffWeeks + 1);
+        const weekKey = "SW" + (currentWeekNum < 10 ? "0" + currentWeekNum : currentWeekNum);
+
+        // 渲染表头日期
+        let headerHtml = `<div style="padding: 8px; text-align: center; font-size: 11px; font-weight: bold; color: #a19f9d; border-right: 1px solid #e1dfdd; display: flex; align-items: center; justify-content: center;">W${currentWeekNum}</div>`;
         const daysNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
         for (let i = 0; i < totalDays; i++) {
             let curr = new Date(startOfWeek);
@@ -98,7 +115,7 @@ function initAiceApp() {
         }
         headerRow.innerHTML = headerHtml;
 
-        // 网格列
+        // 渲染网格列
         const wrapper = document.getElementById('aice-days-wrapper');
         let colsHtml = '';
         for (let i = 0; i < totalDays; i++) {
@@ -106,39 +123,75 @@ function initAiceApp() {
         }
         wrapper.innerHTML = colsHtml;
 
-        // 渲染课程卡片
-        timetableEvents.forEach(ev => {
-            if (ev.dayIndex > totalDays) return;
-            const targetCol = wrapper.querySelector(`.aice-day-col[data-day-index="${ev.dayIndex}"]`);
+        // 从 CSV 数据中过滤出当前周、当前学期的课程并渲染
+        rawCsvData.forEach(row => {
+            // 假设 CSV 列名匹配
+            if (row.Semester !== globalConfig.defaultSemester) return;
+            const weekCellContent = row[weekKey];
+            if (!weekCellContent || weekCellContent.trim() === "") return; // 本周无此课
+
+            // 解析 Day of Week 映射成数字 (Mon=1, Tue=2...)
+            const dayMap = { 'Monday': 1, 'Tuesday': 2, 'Wednesday': 3, 'Thursday': 4, 'Friday': 5, 'Saturday': 6, 'Sunday': 7 };
+            const dIndex = dayMap[row['Day of Week']];
+            if (!dIndex || dIndex > totalDays) return;
+
+            const targetCol = wrapper.querySelector(`.aice-day-col[data-day-index="${dIndex}"]`);
             if (!targetCol) return;
 
-            const [sh, sm] = ev.startTime.split(':').map(Number);
-            const [eh, em] = ev.endTime.split(':').map(Number);
-            const topPx = ((sh - 8) * 60 + sm);
-            const heightPx = ((eh - 8) * 60 + em) - topPx;
+            // 假设表格格子格式如 "10:00-12:00" 或者你可以在这里自定义解析规则
+            // 这里简单假设单元格包含时间，例如 "10:00-12:00"
+            const timePart = weekCellContent.split('|')[0].trim(); // 比如 "10:00-12:00"
+            const roomPart = weekCellContent.split('|')[1] || row['Programmes'] || "ECS Lab";
+            
+            const times = timePart.split('-');
+            if (times.length < 2) return;
+            
+            const [sh, sm] = times[0].trim().split(':').map(Number);
+            const [eh, em] = times[1].trim().split(':').map(Number);
+            
+            const topPx = ((sh - 8) * 60 + (sm || 0));
+            const heightPx = ((eh - 8) * 60 + (em || 0)) - topPx;
 
             const card = document.createElement('div');
-            card.style.cssText = `position: absolute; top: ${topPx}px; left: 4px; right: 4px; height: ${heightPx}px; background-color: ${ev.color}; color: ${ev.textColor}; border-radius: 4px; padding: 6px 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); overflow: hidden; box-sizing: border-box; display: flex; flex-direction: column; justify-content: space-between;`;
+            card.style.cssText = `position: absolute; top: ${topPx}px; left: 4px; right: 4px; height: ${heightPx}px; background-color: #c3d66b; color: #1f1f1f; border-radius: 4px; padding: 6px 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); overflow: hidden; box-sizing: border-box; display: flex; flex-direction: column; justify-content: space-between;`;
 
-            if (ev.isDraft) {
-                card.innerHTML = `
-                    <div style="position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; font-weight: bold; color: rgba(0,0,0,0.06); pointer-events: none; text-transform: lowercase; z-index: 1;">draft</div>
-                    <div style="position: relative; z-index: 2;">
-                        <div style="font-size: 11px; font-weight: bold; line-height: 1.2;">${ev.code} - ${ev.title}</div>
-                        <div style="font-size: 10px; opacity: 0.9; margin-top: 2px;">${ev.room}</div>
-                    </div>
-                `;
-            }
+            card.innerHTML = `
+                <div style="position: relative; z-index: 2;">
+                    <div style="font-size: 11px; font-weight: bold; line-height: 1.2;">${row['Module']} - ${row['Name']}</div>
+                    <div style="font-size: 10px; opacity: 0.9; margin-top: 2px;">${roomPart}</div>
+                </div>
+            `;
             targetCol.appendChild(card);
         });
 
-        // 更新日期标题
+        // 更新顶部日期范围标题
         const end = new Date(startOfWeek);
         end.setDate(startOfWeek.getDate() + (totalDays - 1));
-        document.getElementById('aice-date-title').innerText = `${startOfWeek.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – ${end.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`;
+        document.getElementById('aice-date-title').innerText = `${startOfWeek.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – ${end.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} (W${currentWeekNum})`;
     }
 
-    // 绑定按钮事件（用 addEventListener 代替内联 onclick，避免 Power Pages 冲突）
+    // 简易 CSV 解析函数
+    function parseCSV(text) {
+        const lines = text.split('\n');
+        const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g, ''));
+        const result = [];
+
+        for (let i = 1; i < lines.length; i++) {
+            if (!lines[i].trim()) continue;
+            // 处理带引号的 CSV 简单分割
+            const currentline = lines[i].split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/);
+            const obj = {};
+            for (let j = 0; j < headers.length; j++) {
+                let val = currentline[j] ? currentline[j].trim() : '';
+                val = val.replace(/^"|"$/g, ''); // 去除双引号
+                obj[headers[j]] = val;
+            }
+            result.push(obj);
+        }
+        return result;
+    }
+
+    // 绑定翻页按钮事件
     document.getElementById('aice-prev-btn').onclick = function() {
         baseDate.setDate(baseDate.getDate() - 7);
         refresh();
@@ -148,7 +201,7 @@ function initAiceApp() {
         refresh();
     };
     document.getElementById('aice-today-btn').onclick = function() {
-        baseDate = new Date();
+        baseDate = new Date(globalConfig.week0StartDate);
         refresh();
     };
     document.getElementById('aice-weekend-btn').onclick = function() {
