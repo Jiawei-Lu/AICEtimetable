@@ -62,16 +62,17 @@ async function initAiceApp() {
             const userConfig = await configRes.json();
             if (userConfig.week1StartDate) globalConfig.week1StartDate = userConfig.week1StartDate.trim();
             if (userConfig.defaultSemester) globalConfig.defaultSemester = String(userConfig.defaultSemester).trim();
+            console.log("配置加载成功:", globalConfig);
         }
         
-        // 直接请求简化后的文件名 timetable.csv
+        // 固定请求 AICE-Timetable-AY2627.csv
         const csvRes = await fetch('AICE-Timetable-AY2627.csv');
         if (csvRes.ok) {
             const csvText = await csvRes.text();
             rawCsvData = parseCSV(csvText);
-            console.log("CSV 加载成功，总行数:", rawCsvData.length);
+            console.log("CSV 加载成功，共解析行数:", rawCsvData.length);
         } else {
-            console.error("无法加载 AICE Timetable AY2627.csv，请检查文件名是否已修改");
+            console.error("无法加载 AICE-Timetable-AY2627.csv，请确认仓库中是否存在该文件");
         }
 
         let parsedDate = new Date(globalConfig.week1StartDate);
@@ -116,6 +117,7 @@ async function initAiceApp() {
         currentWeekNum = Math.max(1, currentWeekNum);
 
         const weekKey = "SW" + (currentWeekNum < 10 ? "0" + currentWeekNum : currentWeekNum);
+        console.log("当前渲染周期列名:", weekKey);
 
         let headerHtml = `<div style="padding: 8px; text-align: center; font-size: 11px; font-weight: bold; color: #a19f9d; border-right: 1px solid #e1dfdd; display: flex; align-items: center; justify-content: center;">W${currentWeekNum}</div>`;
         const daysNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
@@ -134,8 +136,8 @@ async function initAiceApp() {
         }
         wrapper.innerHTML = colsHtml;
 
-        // 颜色池，让不同的课卡片好看
         const colors = ["#c3d66b", "#9e6b9e", "#90baf0", "#f0baf0", "#f0d090"];
+        let renderCount = 0;
 
         rawCsvData.forEach((row, idx) => {
             const sem = row['Semester'] ? row['Semester'].trim() : "";
@@ -182,7 +184,10 @@ async function initAiceApp() {
                 </div>
             `;
             targetCol.appendChild(card);
+            renderCount++;
         });
+
+        console.log(`本周 (W${currentWeekNum}) 成功渲染了 ${renderCount} 节课`);
 
         const end = new Date(startOfWeek);
         end.setDate(startOfWeek.getDate() + (totalDays - 1));
@@ -215,7 +220,6 @@ async function initAiceApp() {
         return result;
     }
 
-    // 绑定学期切换按钮
     document.getElementById('sem1-btn').onclick = function() {
         globalConfig.defaultSemester = "S1";
         this.style.background = "rgba(255,255,255,0.2)";
