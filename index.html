@@ -59,16 +59,23 @@ async function initAiceApp() {
     try {
         const configRes = await fetch('config.json');
         if (configRes.ok) {
-            const userConfig = await configRes.json();
+            let userConfig = await configRes.json();
             if (userConfig.week1StartDate) globalConfig.week1StartDate = userConfig.week1StartDate.trim();
-            if (userConfig.defaultSemester) globalConfig.defaultSemester = String(userConfig.defaultSemester).trim();
+            if (userConfig.defaultSemester) {
+                let sem = String(userConfig.defaultSemester).trim();
+                // 兼容用户在 config 里写 "1" 的情况，自动转成 "S1"
+                if (sem === "1") sem = "S1";
+                if (sem === "2") sem = "S2";
+                globalConfig.defaultSemester = sem;
+            }
         }
+        console.log("当前生效配置:", globalConfig);
         
         const csvRes = await fetch('AICE-Timetable-AY2627.csv');
         if (csvRes.ok) {
             const csvText = await csvRes.text();
             rawCsvData = parseCSV(csvText);
-            console.log("CSV 解析成功，有效课程行数:", rawCsvData.length);
+            console.log("CSV 解析成功，总行数:", rawCsvData.length);
         } else {
             console.error("无法加载 AICE-Timetable-AY2627.csv");
         }
@@ -141,8 +148,7 @@ async function initAiceApp() {
             if (sem !== globalConfig.defaultSemester.toUpperCase()) return;
             
             const weekVal = row[weekKey] !== undefined ? String(row[weekKey]).trim() : "0";
-            // 兼容值为 1、"1" 或非空数字的情况
-            if (weekVal !== "1" && weekVal !== "true") return;
+            if (weekVal !== "1") return;
 
             const dayStr = row['Day of Week'] ? row['Day of Week'].trim().toLowerCase() : '';
             const dayMap = { 
