@@ -39,6 +39,19 @@
 </div>
 
 <script>
+// 将你的课表数据直接内嵌在此处，彻底解决跨域和读取失败问题！
+const embeddedCsvData = `Semester,Part,Module,Programmes,Name,Lab Type,Contact,Preparation Requirement,Day of Week,Start Time,End Time,Total Student Number,Requirements,Requirement Status,SW01,SW02,SW03,SW04,SW05,SW06,SW07,SW08,SW09,SW10,SW11,SW12
+S1,I,AICE1001,AICE,Ethics and Security of Computing,Computer,Han Wu,Check software,Thursday,14,17,58,,Prepared,0,1,0,1,0,0,1,0,0,0,0,0
+S1,I,AICE1002,AICE,Digital Computer Systems,Computer,Graeme Bragg,Check software,Thursday,14,17,58,,Prepared,0,0,0,0,1,1,0,1,0,1,1,0
+S1,I,AICE1003,AICE,High-Level Programming,Computer,Mark Speake,Check software,Tuesday,14,17,58,,Prepared,0,1,0,1,0,0,1,0,0,0,0,0
+S1,I,AICE1004,AICE,Mathematics for AI and Computer Engineering (I),Computer,Sheng Chen,Check software,Thursday,14,17,58,,Prepared,0,1,0,1,0,0,1,0,0,0,0,0
+S1,I,AICE2001,AICE,Scientific Computing,Computer,Hans Fangohr,Check software,Monday,10,12,58,,Prepared,1,1,1,1,1,1,1,1,1,1,1,1
+S1,I,AICE2002,AICE,AI and Learning Machines,Computer,Shiliang Zhang,Check software,Friday,10,13,58,,Prepared,0,1,1,1,1,1,1,1,1,1,1,1
+S1,I,AICE2003,AICE,Electronics,Computer,Theodoros Tsakiris,Check software,Monday,14,17,58,,Prepared,0,0,0,0,0,0,0,0,0,0,0,0
+S1,I,AICE2004,AICE,Parallel and Distributed Computing,Computer,Klaas Knottenbelt,Check software,Friday,14,17,58,,Prepared,0,0,0,0,0,0,0,0,0,0,0,0
+S1,I,AICE3002,AICE,Introduction to Deep Learning,Computer,Klaas Knottenbelt,Check software,Wednesday,10,12,58,,Prepared,1,1,1,1,1,1,1,1,1,1,1,1
+S1,I,AICE6001,AICE,Introduction to Deep Learning,Computer,Klaas Knottenbelt,Check software,Wednesday,10,12,58,,Prepared,1,1,1,1,1,1,1,1,1,1,1,1`;
+
 document.addEventListener("DOMContentLoaded", function() {
     initAiceApp();
 });
@@ -57,28 +70,18 @@ async function initAiceApp() {
     let baseDate = new Date("2026-09-14");
 
     try {
+        // 尝试读取 config.json 获取每年变动的参数
         const configRes = await fetch('config.json');
         if (configRes.ok) {
             let userConfig = await configRes.json();
             if (userConfig.week1StartDate) globalConfig.week1StartDate = userConfig.week1StartDate.trim();
-            if (userConfig.defaultSemester) {
-                let sem = String(userConfig.defaultSemester).trim();
-                // 兼容用户在 config 里写 "1" 的情况，自动转成 "S1"
-                if (sem === "1") sem = "S1";
-                if (sem === "2") sem = "S2";
-                globalConfig.defaultSemester = sem;
-            }
+            if (userConfig.defaultSemester) globalConfig.defaultSemester = String(userConfig.defaultSemester).trim();
         }
-        console.log("当前生效配置:", globalConfig);
-        
-        const csvRes = await fetch('AICE-Timetable-AY2627.csv');
-        if (csvRes.ok) {
-            const csvText = await csvRes.text();
-            rawCsvData = parseCSV(csvText);
-            console.log("CSV 解析成功，总行数:", rawCsvData.length);
-        } else {
-            console.error("无法加载 AICE-Timetable-AY2627.csv");
-        }
+        console.log("当前加载的配置参数:", globalConfig);
+
+        // 直接解析内联的 CSV 数据，完美避开跨域/404
+        rawCsvData = parseCSV(embeddedCsvData);
+        console.log("CSV 解析成功，有效课程行数:", rawCsvData.length);
 
         let parsedDate = new Date(globalConfig.week1StartDate);
         if (!isNaN(parsedDate.getTime())) baseDate = parsedDate;
