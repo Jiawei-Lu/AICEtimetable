@@ -72,12 +72,12 @@ async function initAiceApp() {
         }
         
         // 尝试加载 timetable.csv
-        const csvRes = await fetch('timetable.csv');
+        const csvRes = await fetch('AICE Timetable AY2627.csv');
         if (csvRes.ok) {
             const csvText = await csvRes.text();
             rawCsvData = parseCSV(csvText);
         } else {
-            console.warn("未找到 timetable.csv，课程表将为空");
+            console.warn("未找到 AICE Timetable AY2627.csv，课程表将为空");
         }
 
         // 初始化基准日期
