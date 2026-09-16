@@ -39,7 +39,7 @@
 </div>
 
 <script>
-// 将你的课表数据直接内嵌在此处，彻底解决跨域和读取失败问题！
+// 内嵌 CSV 数据，绝对保证零跨域、零读取失败
 const embeddedCsvData = `Semester,Part,Module,Programmes,Name,Lab Type,Contact,Preparation Requirement,Day of Week,Start Time,End Time,Total Student Number,Requirements,Requirement Status,SW01,SW02,SW03,SW04,SW05,SW06,SW07,SW08,SW09,SW10,SW11,SW12
 S1,I,AICE1001,AICE,Ethics and Security of Computing,Computer,Han Wu,Check software,Thursday,14,17,58,,Prepared,0,1,0,1,0,0,1,0,0,0,0,0
 S1,I,AICE1002,AICE,Digital Computer Systems,Computer,Graeme Bragg,Check software,Thursday,14,17,58,,Prepared,0,0,0,0,1,1,0,1,0,1,1,0
@@ -70,18 +70,16 @@ async function initAiceApp() {
     let baseDate = new Date("2026-09-14");
 
     try {
-        // 尝试读取 config.json 获取每年变动的参数
         const configRes = await fetch('config.json');
         if (configRes.ok) {
             let userConfig = await configRes.json();
             if (userConfig.week1StartDate) globalConfig.week1StartDate = userConfig.week1StartDate.trim();
             if (userConfig.defaultSemester) globalConfig.defaultSemester = String(userConfig.defaultSemester).trim();
         }
-        console.log("当前加载的配置参数:", globalConfig);
+        console.log("当前配置:", globalConfig);
 
-        // 直接解析内联的 CSV 数据，完美避开跨域/404
         rawCsvData = parseCSV(embeddedCsvData);
-        console.log("CSV 解析成功，有效课程行数:", rawCsvData.length);
+        console.log("CSV 解析成功，总行数:", rawCsvData.length);
 
         let parsedDate = new Date(globalConfig.week1StartDate);
         if (!isNaN(parsedDate.getTime())) baseDate = parsedDate;
@@ -154,6 +152,7 @@ async function initAiceApp() {
             if (weekVal !== "1") return;
 
             const dayStr = row['Day of Week'] ? row['Day of Week'].trim().toLowerCase() : '';
+            // 完美补全星期映射
             const dayMap = { 
                 'monday': 1, 'mon': 1, 
                 'tuesday': 2, 'tue': 2, 
