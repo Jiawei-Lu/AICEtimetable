@@ -50,7 +50,7 @@ if (document.readyState === "complete" || document.readyState === "interactive")
 async function initAiceApp() {
     let globalConfig = {
         week1StartDate: "2026-09-14",
-        defaultSemester: "1"
+        defaultSemester: "S1"
     };
     let rawCsvData = [];
     let includeWeekends = false;
@@ -64,11 +64,12 @@ async function initAiceApp() {
             if (userConfig.defaultSemester) globalConfig.defaultSemester = String(userConfig.defaultSemester).trim();
         }
         
-        const csvRes = await fetch('AICE Timetable AY2627.csv');
+        // 读取你当前正确的 CSV 文件名
+        const csvRes = await fetch('AICE Timetable AY2627 (1).csv');
         if (csvRes.ok) {
             const csvText = await csvRes.text();
             rawCsvData = parseCSV(csvText);
-            console.log("成功解析 CSV 数据，共", rawCsvData.length, "行", rawCsvData[0]);
+            console.log("CSV 加载成功，记录数:", rawCsvData.length);
         } else {
             console.error("无法加载 CSV 文件");
         }
@@ -115,7 +116,6 @@ async function initAiceApp() {
         currentWeekNum = Math.max(1, currentWeekNum);
 
         const weekKey = "SW" + (currentWeekNum < 10 ? "0" + currentWeekNum : currentWeekNum);
-        console.log("当前正在渲染周:", weekKey, "对应的表格列");
 
         let headerHtml = `<div style="padding: 8px; text-align: center; font-size: 11px; font-weight: bold; color: #a19f9d; border-right: 1px solid #e1dfdd; display: flex; align-items: center; justify-content: center;">W${currentWeekNum}</div>`;
         const daysNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
@@ -134,14 +134,16 @@ async function initAiceApp() {
         }
         wrapper.innerHTML = colsHtml;
 
-        rawCsvData.forEach((row, index) => {
-            // 宽松匹配 Semester（支持 "1" 或数字）
-            if (String(row.Semester).trim() !== String(globalConfig.defaultSemester)) return;
+        rawCsvData.forEach((row) => {
+            // 匹配 Semester (例如 "S1")
+            const sem = row['Semester'] ? row['Semester'].trim() : "";
+            if (sem !== globalConfig.defaultSemester) return;
             
-            const weekCellContent = row[weekKey];
-            if (!weekCellContent || weekCellContent.trim() === "") return;
+            // 检查这一周开关是否为 1 (代表本周有这门课)
+            const weekVal = row[weekKey] ? String(row[weekKey]).trim() : "0";
+            if (weekVal !== "1") return;
 
-            // 宽松匹配星期（支持 Monday 或 Mon）
+            // 匹配星期 (Monday, Tuesday, Wednesday, Thursday, Friday...)
             const dayStr = row['Day of Week'] ? row['Day of Week'].trim().toLowerCase() : '';
             const dayMap = { 
                 'monday': 1, 'mon': 1, 
@@ -158,37 +160,28 @@ async function initAiceApp() {
             const targetCol = wrapper.querySelector(`.aice-day-col[data-day-index="${dIndex}"]`);
             if (!targetCol) return;
 
-            // 智能解析单元格：如果包含 | 就分割，如果不包含就直接整格当成时间或者加上默认名称
-            let timePart = weekCellContent;
-            let roomPart = row['Programmes'] || "ECS Lab";
-            if (weekCellContent.includes('|')) {
-                timePart = weekCellContent.split('|')[0].trim();
-                roomPart = weekCellContent.split('|')[1].trim();
-            }
+            // 获取行内自带的开始时间和结束时间
+            const sh = Number(row['Start Time']);
+            const eh = Number(row['End Time']);
+            if (isNaN(sh) || isNaN(eh)) return;
 
-            const times = timePart.split('-');
-            if (times.length < 2) {
-                console.warn(`第 ${index+1} 行时间格式无法解析:`, timePart);
-                return;
-            }
-            
-            const [sh, sm] = times[0].trim().split(':').map(Number);
-            const [eh, em] = times[1].trim().split(':').map(Number);
-            
-            const topPx = ((sh - 8) * 60 + (sm || 0));
-            const heightPx = ((eh - 8) * 60 + (em || 0)) - topPx;
+            const moduleCode = row['Module'] || '';
+            const moduleName = row['Name'] || '';
+            const roomPart = row['Programmes'] || "ECS Lab";
+
+            const topPx = (sh - 8) * 60;
+            const heightPx = (eh - sh) * 60;
 
             const card = document.createElement('div');
             card.style.cssText = `position: absolute; top: ${topPx}px; left: 4px; right: 4px; height: ${heightPx}px; background-color: #c3d66b; color: #1f1f1f; border-radius: 4px; padding: 6px 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); overflow: hidden; box-sizing: border-box; display: flex; flex-direction: column; justify-content: space-between;`;
 
             card.innerHTML = `
                 <div style="position: relative; z-index: 2;">
-                    <div style="font-size: 11px; font-weight: bold; line-height: 1.2;">${row['Module'] || 'Module'} - ${row['Name'] || ''}</div>
-                    <div style="font-size: 10px; opacity: 0.9; margin-top: 2px;">${roomPart}</div>
+                    <div style="font-size: 11px; font-weight: bold; line-height: 1.2;">${moduleCode} - ${moduleName}</div>
+                    <div style="font-size: 10px; opacity: 0.9; margin-top: 2px;">${roomPart} (${row['Lab Type'] || ''})</div>
                 </div>
             `;
             targetCol.appendChild(card);
-            console.log("成功渲染课程:", row['Module'], "到星期", dIndex);
         });
 
         const end = new Date(startOfWeek);
@@ -197,13 +190,20 @@ async function initAiceApp() {
     }
 
     function parseCSV(text) {
-        const lines = text.split('\n');
-        const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g, '').replace(/^\uFEFF/, '')); // 去除BOM头
+        const lines = text.split(/\r\n|\n/);
+        if(lines.length === 0) return [];
+        
+        const firstLine = lines[0];
+        let delimiter = ',';
+        if (firstLine.includes(';') && !firstLine.includes(',')) delimiter = ';';
+        else if (firstLine.includes('\t')) delimiter = '\t';
+
+        const headers = firstLine.split(delimiter).map(h => h.trim().replace(/^"|"$/g, '').replace(/^\uFEFF/, ''));
         const result = [];
 
         for (let i = 1; i < lines.length; i++) {
             if (!lines[i].trim()) continue;
-            const currentline = lines[i].split(/,(?=(?:(?:[^"]*"){2})*[^"]*$)/);
+            const currentline = lines[i].split(new RegExp(delimiter + '(?=(?:(?:[^"]*"){2})*[^"]*$)'));
             const obj = {};
             for (let j = 0; j < headers.length; j++) {
                 let val = currentline[j] ? currentline[j].trim() : '';
