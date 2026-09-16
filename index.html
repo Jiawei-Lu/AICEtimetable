@@ -49,53 +49,39 @@ if (document.readyState === "complete" || document.readyState === "interactive")
 
 async function initAiceApp() {
     let globalConfig = {
-        week1StartDate: "2026-09-14", // 设置代码内部的硬编码兜底保护
+        week1StartDate: "2026-09-14",
         defaultSemester: "1"
     };
     let rawCsvData = [];
     let includeWeekends = false;
-    let baseDate = new Date();
+    let baseDate = new Date("2026-09-14");
 
     try {
-        // 尝试加载 config.json
         const configRes = await fetch('config.json');
         if (configRes.ok) {
             const userConfig = await configRes.json();
-            if (userConfig.week1StartDate) {
-                globalConfig.week1StartDate = userConfig.week1StartDate;
-            }
-            if (userConfig.defaultSemester) {
-                globalConfig.defaultSemester = userConfig.defaultSemester;
-            }
-        } else {
-            console.warn("未找到 config.json，将使用默认兜底日期");
+            if (userConfig.week1StartDate) globalConfig.week1StartDate = userConfig.week1StartDate.trim();
+            if (userConfig.defaultSemester) globalConfig.defaultSemester = String(userConfig.defaultSemester).trim();
         }
         
-        // 尝试加载 timetable.csv
         const csvRes = await fetch('AICE Timetable AY2627.csv');
         if (csvRes.ok) {
             const csvText = await csvRes.text();
             rawCsvData = parseCSV(csvText);
+            console.log("成功解析 CSV 数据，共", rawCsvData.length, "行", rawCsvData[0]);
         } else {
-            console.warn("未找到 AICE Timetable AY2627.csv，课程表将为空");
+            console.error("无法加载 CSV 文件");
         }
 
-        // 初始化基准日期
-        baseDate = new Date(globalConfig.week1StartDate);
-        if (isNaN(baseDate.getTime())) {
-            console.error("config.json 中的日期格式解析失败，强制重置为 2026-09-14");
-            baseDate = new Date("2026-09-14");
-            globalConfig.week1StartDate = "2026-09-14";
-        }
+        let parsedDate = new Date(globalConfig.week1StartDate);
+        if (!isNaN(parsedDate.getTime())) baseDate = parsedDate;
     } catch (e) {
-        console.error("异步加载过程发生异常:", e);
-        baseDate = new Date("2026-09-14");
+        console.error("初始化出错:", e);
     }
 
     const timeAxisEl = document.getElementById('aice-time-axis');
     if (!timeAxisEl) return;
 
-    // 渲染时间轴 (08:00 - 19:00)
     let axisHtml = '';
     for (let h = 8; h < 19; h++) {
         let timeStr = (h < 10 ? '0' + h : h) + ':00';
@@ -112,13 +98,15 @@ async function initAiceApp() {
         headerRow.style.gridTemplateColumns = gridTemplate;
         gridBody.style.gridTemplateColumns = gridTemplate;
 
-        // 获取当前显示的星期一
         const startOfWeek = new Date(baseDate);
+        if (isNaN(startOfWeek.getTime())) {
+            baseDate = new Date("2026-09-14");
+            return;
+        }
         const dayOfWeek = startOfWeek.getDay();
         const diffToMon = startOfWeek.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1);
         startOfWeek.setDate(diffToMon);
 
-        // 基于 week1StartDate 计算当前是第几周
         const weekOneDate = new Date(globalConfig.week1StartDate);
         const diffTime = startOfWeek.getTime() - weekOneDate.getTime();
         const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
@@ -126,10 +114,9 @@ async function initAiceApp() {
         let currentWeekNum = Math.floor(diffDays / 7) + 1;
         currentWeekNum = Math.max(1, currentWeekNum);
 
-        // 对应 CSV 的列名格式 (例如 W1 对应 SW01)
         const weekKey = "SW" + (currentWeekNum < 10 ? "0" + currentWeekNum : currentWeekNum);
+        console.log("当前正在渲染周:", weekKey, "对应的表格列");
 
-        // 渲染表头日期
         let headerHtml = `<div style="padding: 8px; text-align: center; font-size: 11px; font-weight: bold; color: #a19f9d; border-right: 1px solid #e1dfdd; display: flex; align-items: center; justify-content: center;">W${currentWeekNum}</div>`;
         const daysNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
         for (let i = 0; i < totalDays; i++) {
@@ -140,7 +127,6 @@ async function initAiceApp() {
         }
         headerRow.innerHTML = headerHtml;
 
-        // 渲染网格列
         const wrapper = document.getElementById('aice-days-wrapper');
         let colsHtml = '';
         for (let i = 0; i < totalDays; i++) {
@@ -148,24 +134,43 @@ async function initAiceApp() {
         }
         wrapper.innerHTML = colsHtml;
 
-        // 从 CSV 数据中过滤出当前周、当前学期的课程并渲染
-        rawCsvData.forEach(row => {
-            if (row.Semester !== globalConfig.defaultSemester) return;
+        rawCsvData.forEach((row, index) => {
+            // 宽松匹配 Semester（支持 "1" 或数字）
+            if (String(row.Semester).trim() !== String(globalConfig.defaultSemester)) return;
+            
             const weekCellContent = row[weekKey];
             if (!weekCellContent || weekCellContent.trim() === "") return;
 
-            const dayMap = { 'Monday': 1, 'Tuesday': 2, 'Wednesday': 3, 'Thursday': 4, 'Friday': 5, 'Saturday': 6, 'Sunday': 7 };
-            const dIndex = dayMap[row['Day of Week']];
+            // 宽松匹配星期（支持 Monday 或 Mon）
+            const dayStr = row['Day of Week'] ? row['Day of Week'].trim().toLowerCase() : '';
+            const dayMap = { 
+                'monday': 1, 'mon': 1, 
+                'tuesday': 2, 'tue': 2, 
+                'wednesday': 3, 'wed': 3, 
+                'thursday': 4, 'thu': 4, 
+                'friday': 5, 'fri': 5, 
+                'saturday': 6, 'sat': 6, 
+                'sunday': 7, 'sun': 7 
+            };
+            const dIndex = dayMap[dayStr];
             if (!dIndex || dIndex > totalDays) return;
 
             const targetCol = wrapper.querySelector(`.aice-day-col[data-day-index="${dIndex}"]`);
             if (!targetCol) return;
 
-            const timePart = weekCellContent.split('|')[0].trim();
-            const roomPart = weekCellContent.split('|')[1] || row['Programmes'] || "ECS Lab";
-            
+            // 智能解析单元格：如果包含 | 就分割，如果不包含就直接整格当成时间或者加上默认名称
+            let timePart = weekCellContent;
+            let roomPart = row['Programmes'] || "ECS Lab";
+            if (weekCellContent.includes('|')) {
+                timePart = weekCellContent.split('|')[0].trim();
+                roomPart = weekCellContent.split('|')[1].trim();
+            }
+
             const times = timePart.split('-');
-            if (times.length < 2) return;
+            if (times.length < 2) {
+                console.warn(`第 ${index+1} 行时间格式无法解析:`, timePart);
+                return;
+            }
             
             const [sh, sm] = times[0].trim().split(':').map(Number);
             const [eh, em] = times[1].trim().split(':').map(Number);
@@ -178,23 +183,22 @@ async function initAiceApp() {
 
             card.innerHTML = `
                 <div style="position: relative; z-index: 2;">
-                    <div style="font-size: 11px; font-weight: bold; line-height: 1.2;">${row['Module']} - ${row['Name']}</div>
+                    <div style="font-size: 11px; font-weight: bold; line-height: 1.2;">${row['Module'] || 'Module'} - ${row['Name'] || ''}</div>
                     <div style="font-size: 10px; opacity: 0.9; margin-top: 2px;">${roomPart}</div>
                 </div>
             `;
             targetCol.appendChild(card);
+            console.log("成功渲染课程:", row['Module'], "到星期", dIndex);
         });
 
-        // 更新顶部日期范围标题
         const end = new Date(startOfWeek);
         end.setDate(startOfWeek.getDate() + (totalDays - 1));
         document.getElementById('aice-date-title').innerText = `${startOfWeek.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – ${end.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} (W${currentWeekNum})`;
     }
 
-    // 简易 CSV 解析函数
     function parseCSV(text) {
         const lines = text.split('\n');
-        const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g, ''));
+        const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g, '').replace(/^\uFEFF/, '')); // 去除BOM头
         const result = [];
 
         for (let i = 1; i < lines.length; i++) {
@@ -211,7 +215,6 @@ async function initAiceApp() {
         return result;
     }
 
-    // 绑定翻页按钮事件
     document.getElementById('aice-prev-btn').onclick = function() {
         baseDate.setDate(baseDate.getDate() - 7);
         refresh();
