@@ -38,7 +38,6 @@
     </div>
 </div>
 
-<!-- 使用绝对安全的原生事件监听，不依赖内联 onclick -->
 <script>
 document.addEventListener("DOMContentLoaded", function() {
     initAiceApp();
@@ -49,26 +48,48 @@ if (document.readyState === "complete" || document.readyState === "interactive")
 }
 
 async function initAiceApp() {
-    let globalConfig = {};
+    let globalConfig = {
+        week1StartDate: "2026-09-14", // 设置代码内部的硬编码兜底保护
+        defaultSemester: "1"
+    };
     let rawCsvData = [];
     let includeWeekends = false;
     let baseDate = new Date();
 
     try {
-        // 1. 异步加载配置和 CSV 数据
+        // 尝试加载 config.json
         const configRes = await fetch('config.json');
-        globalConfig = await configRes.json();
+        if (configRes.ok) {
+            const userConfig = await configRes.json();
+            if (userConfig.week1StartDate) {
+                globalConfig.week1StartDate = userConfig.week1StartDate;
+            }
+            if (userConfig.defaultSemester) {
+                globalConfig.defaultSemester = userConfig.defaultSemester;
+            }
+        } else {
+            console.warn("未找到 config.json，将使用默认兜底日期");
+        }
         
+        // 尝试加载 timetable.csv
         const csvRes = await fetch('timetable.csv');
-        const csvText = await csvRes.text();
-        rawCsvData = parseCSV(csvText);
+        if (csvRes.ok) {
+            const csvText = await csvRes.text();
+            rawCsvData = parseCSV(csvText);
+        } else {
+            console.warn("未找到 timetable.csv，课程表将为空");
+        }
 
-        // 初始化基准日期为配置中的 week1 开始时间
+        // 初始化基准日期
         baseDate = new Date(globalConfig.week1StartDate);
+        if (isNaN(baseDate.getTime())) {
+            console.error("config.json 中的日期格式解析失败，强制重置为 2026-09-14");
+            baseDate = new Date("2026-09-14");
+            globalConfig.week1StartDate = "2026-09-14";
+        }
     } catch (e) {
-        console.error("加载配置文件或数据失败，请检查路径:", e);
-        document.getElementById('aice-date-title').innerText = "Data Load Failed";
-        return;
+        console.error("异步加载过程发生异常:", e);
+        baseDate = new Date("2026-09-14");
     }
 
     const timeAxisEl = document.getElementById('aice-time-axis');
@@ -103,7 +124,7 @@ async function initAiceApp() {
         const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
         
         let currentWeekNum = Math.floor(diffDays / 7) + 1;
-        currentWeekNum = Math.max(1, currentWeekNum); // 小于第1周时默认显示第1周（或按需调整）
+        currentWeekNum = Math.max(1, currentWeekNum);
 
         // 对应 CSV 的列名格式 (例如 W1 对应 SW01)
         const weekKey = "SW" + (currentWeekNum < 10 ? "0" + currentWeekNum : currentWeekNum);
@@ -140,7 +161,6 @@ async function initAiceApp() {
             const targetCol = wrapper.querySelector(`.aice-day-col[data-day-index="${dIndex}"]`);
             if (!targetCol) return;
 
-            // 假设单元格格式如 "10:00-12:00 | 房间号"
             const timePart = weekCellContent.split('|')[0].trim();
             const roomPart = weekCellContent.split('|')[1] || row['Programmes'] || "ECS Lab";
             
