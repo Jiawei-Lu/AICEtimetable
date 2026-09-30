@@ -106,17 +106,25 @@
                     targetDate.setHours(12,0,0,0);
 
                     if (targetDate >= start && targetDate <= end) {
-                        // 标准化 Semester 名称：如 "Semester 1" 转为 "S1", "Semester 2" 转为 "S2" 等
                         let rawSem = row['Semester'] ? row['Semester'].trim() : '';
-                        let semCode = rawSem;
-                        if (rawSem.toLowerCase().includes('semester 1') || rawSem === '1') semCode = 'S1';
-                        else if (rawSem.toLowerCase().includes('semester 2') || rawSem === '2') semCode = 'S2';
-                        else if (rawSem.match(/semester\s+(\d+)/i)) {
-                            semCode = 'S' + rawSem.match(/semester\s+(\d+)/i)[1];
+                        let semCode = '';
+                        
+                        // 精准匹配学期名称
+                        const lowerSem = rawSem.toLowerCase();
+                        if (lowerSem === 'semester 1') semCode = 'S1';
+                        else if (lowerSem === 'semester 2') semCode = 'S2';
+                        else {
+                            // 其它情况尝试正则提取数字
+                            const match = rawSem.match(/^semester\s+(\d+)$/i);
+                            if (match) {
+                                semCode = 'S' + match[1];
+                            } else {
+                                semCode = rawSem;
+                            }
                         }
 
                         return {
-                            weekLabel: row['Week Label'] ? row['Week Label'].trim() : '', // SW01, SW02...
+                            weekLabel: row['Week Label'] ? row['Week Label'].trim() : '', 
                             semester: semCode,
                             rawSemester: rawSem,
                             weekType: row['Week Type'] ? row['Week Type'].trim() : '',
@@ -146,8 +154,8 @@
             startOfWeek.setHours(0,0,0,0);
 
             const weekInfo = getCurrentWeekInfo(startOfWeek);
-            const weekKey = weekInfo ? weekInfo.weekLabel : ""; // 例如 SW01, SW02
-            const currentSemester = weekInfo ? weekInfo.semester : ""; // 例如 S1, S2
+            const weekKey = weekInfo ? weekInfo.weekLabel : ""; 
+            const currentSemester = weekInfo ? weekInfo.semester : ""; 
 
             document.getElementById('aice-week-badge').innerText = weekInfo ? `${weekInfo.rawSemester} - ${weekKey} (${weekInfo.weekType})` : "假期 / 非教学周";
 
@@ -173,11 +181,11 @@
 
             if (weekKey && currentSemester && rawTimetableData.length > 0) {
                 rawTimetableData.forEach((row) => {
-                    // 1. 学期必须严格匹配（S1 的课程只在 S1 显示，S2 的课程只在 S2 显示）
+                    // 严格校验学期：课表中的 Semester 必须与当前周所属的学期一致（如 S1 对应 S1）
                     const rowSem = row['Semester'] ? row['Semester'].trim().toUpperCase() : "";
                     if (rowSem !== currentSemester.toUpperCase()) return;
 
-                    // 2. 检查对应周列是否有课 ("1")
+                    // 检查对应周列是否有课 ("1")
                     const val = row[weekKey] !== undefined ? String(row[weekKey]).trim() : "0";
                     if (val !== "1") return;
 
@@ -223,7 +231,7 @@
             end.setDate(startOfWeek.getDate() + (totalDays - 1));
             document.getElementById('aice-date-title').innerText = `${startOfWeek.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – ${end.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`;
             
-            showDebug(`学期: ${currentSemester || '无'} | 周次: ${weekKey || '无'} | 成功渲染 ${renderCount} 节课`);
+            showDebug(`学期: ${currentSemester} | 周次: ${weekKey} | 成功渲染 ${renderCount} 节课`);
         }
 
         function parseCSV(text) {
