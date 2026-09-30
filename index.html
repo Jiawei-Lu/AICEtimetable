@@ -342,10 +342,17 @@ function lineChart(bySem,cur,curSem){
   if(!ms.length) return '<p style="color:var(--mute)">Tick at least one semester to draw a line.</p>';
   const vals={}; ms.forEach(m=>{let v=(bySem[m]||[]).map(x=>x.total); if(S.mode==='cum'){let a=0;v=v.map(x=>a+=x)} vals[m]=v});
   const n=Math.max(1,...['S1','S2'].map(m=>(bySem[m]||[]).length));
-  const W=720,H=330,l=56,r=20,t=18,b=66,mx=Math.max(1,...ms.flatMap(m=>vals[m])),p=10**Math.floor(Math.log10(mx))/2,top=Math.ceil(mx*1.05/p)*p;
+  const W=720,H=330,l=56,r=84,t=18,b=66,mx=Math.max(1,...ms.flatMap(m=>vals[m])),p=10**Math.floor(Math.log10(mx))/2,top=Math.ceil(mx*1.05/p)*p;
   const X=i=>l+(n>1?i*(W-l-r)/(n-1):(W-l-r)/2), Y=x=>t+(H-t-b)*(1-x/top);
   let o=`<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Students timetabled per week, by semester">`;
   for(let k=0;k<=4;k++){const g=top*k/4;o+=`<line x1="${l}" x2="${W-r}" y1="${Y(g)}" y2="${Y(g)}" stroke="#dfe4e9"/><text x="${l-8}" y="${Y(g)+4}" text-anchor="end">${Math.round(g)}</text>`}
+  if(S.mode!=='cum'){ /* dashed weekly-average lines, labelled in the right margin */
+    let prev=null;
+    ms.forEach(m=>{const v=vals[m]; if(!v.length) return;
+      const a=v.reduce((x,y)=>x+y,0)/v.length, y=Y(a); let ly=y+4; if(prev!==null&&Math.abs(ly-prev)<13) ly=prev+13; prev=ly;
+      o+=`<line x1="${l}" x2="${W-r+6}" y1="${y}" y2="${y}" stroke="${LC[m]}" stroke-width="1.6" stroke-dasharray="6 5" opacity=".9"><title>${m==='S1'?'Semester 1':'Semester 2'} weekly average: ${Math.round(a)} students per week (${v.length} teaching weeks)</title></line><text x="${W-r+10}" y="${ly}" style="fill:${LC[m]};font-weight:700;font-size:11px">${m} avg ${Math.round(a)}</text>`;
+    });
+  }
   ms.forEach(m=>{
     const v=vals[m], wk=bySem[m]||[];
     o+=`<polyline fill="none" stroke="${LC[m]}" stroke-width="2.5" stroke-linejoin="round" points="${v.map((x,i)=>X(i)+','+Y(x)).join(' ')}"/>`;
