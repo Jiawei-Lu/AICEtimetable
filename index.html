@@ -76,6 +76,10 @@ button:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
 .kr{display:flex;align-items:flex-start;gap:8px;margin-bottom:6px;font-size:12px;color:var(--mute);line-height:1.3}
 .kr .sw{flex:none}
 .ev .rq{margin-top:3px;opacity:1;font-style:italic}
+.ch{flex-wrap:wrap}.ch .lgi{width:auto}.ch .ctl{gap:2px}
+.kpi.wide{grid-column:span 2}.kpi .two{display:flex;gap:28px;flex-wrap:wrap}
+.kpi .note{margin:8px 0 0;font-size:11.5px;color:var(--mute);line-height:1.5}
+@media(max-width:520px){.kpi.wide{grid-column:auto}}
 </style>
 </head>
 <body>
@@ -93,7 +97,7 @@ button:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
   <section id="stats" aria-label="Lab usage statistics">
     <div class="kpis" id="kpis"></div>
     <div class="cards">
-      <div class="card"><div class="ch"><h2>Students timetabled per week</h2><div class="pill"><button data-mode="weekly" class="on">Weekly</button><button data-mode="cum">Cumulative</button></div></div><div id="lineChart"></div></div>
+      <div class="card"><div class="ch"><h2>Students timetabled per week</h2><div class="ctl"><button class="lgi" role="checkbox" data-line="S1"><span class="cb"></span><span class="sw" style="background-color:#2457d6"></span><span class="lt">Semester 1</span></button><button class="lgi" role="checkbox" data-line="S2"><span class="cb"></span><span class="sw" style="background-color:#17915f"></span><span class="lt">Semester 2</span></button></div><div class="pill"><button data-mode="weekly" class="on">Weekly</button><button data-mode="cum">Cumulative</button></div></div><div id="lineChart"></div></div>
       <div class="card"><div class="ch"><h2 id="barTitle">Seat occupancy</h2></div><div id="barChart"></div><div class="key2"><span><i style="background:#1f3a5f"></i>Occupied</span><span><i style="background:#cdeaf2"></i>Remaining</span><span><i style="background:#c0392b"></i>Over capacity</span></div></div>
     </div>
   </section>
@@ -107,7 +111,7 @@ const DAYS = {mon:1,tue:2,wed:3,thu:4,fri:5,sat:6,sun:7};
 const DN = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
 const MN = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 const $ = id => document.getElementById(id);
-const S = {pat:[], tt:[], cfg:{defaultSemester:'S1'}, view:'week', weekends:false, date:new Date(), hide:new Set(), mode:'weekly'};
+const S = {pat:[], tt:[], cfg:{defaultSemester:'S1'}, view:'week', weekends:false, date:new Date(), hide:new Set(), mode:'weekly', lines:{S1:true,S2:true}};
 
 /* ---------- data ---------- */
 function parseCSV(t){
@@ -291,23 +295,35 @@ function weekData(w){
   for(let i=0;i<5;i++){
     const d=addDays(w.start,i), ev=eventsFor(d,true).ev;
     ev.forEach(e=>{total+=stu(e);sessions++;if(e.rows.some(r=>r['Requirement Status']!=='Prepared'))prep++});
-    slots.push({d,am:peak(ev,START,13),pm:peak(ev,13,END)});
+    const wed=i===2; slots.push({d,am:peak(ev,START,13),pm:peak(ev,13,END),am2:wed?peak(ev,START,12):peak(ev,START,13),pm2:wed?null:peak(ev,13,END)});
   }
   return {w,total,sessions,prep,slots};
 }
-function lineChart(weeks,cur){
-  let v=weeks.map(x=>x.total); if(S.mode==='cum'){let a=0;v=v.map(x=>a+=x)}
-  const W=720,H=300,l=56,r=16,t=16,b=52,n=weeks.length,mx=Math.max(1,...v),p=10**Math.floor(Math.log10(mx))/2,top=Math.ceil(mx*1.05/p)*p;
+const LC={S1:'#2457d6',S2:'#17915f'};
+function lineChart(bySem,cur,curSem){
+  const ms=['S1','S2'].filter(m=>S.lines[m]);
+  if(!ms.length) return '<p style="color:var(--mute)">Tick at least one semester to draw a line.</p>';
+  const vals={}; ms.forEach(m=>{let v=(bySem[m]||[]).map(x=>x.total); if(S.mode==='cum'){let a=0;v=v.map(x=>a+=x)} vals[m]=v});
+  const n=Math.max(1,...['S1','S2'].map(m=>(bySem[m]||[]).length));
+  const W=720,H=330,l=56,r=20,t=18,b=66,mx=Math.max(1,...ms.flatMap(m=>vals[m])),p=10**Math.floor(Math.log10(mx))/2,top=Math.ceil(mx*1.05/p)*p;
   const X=i=>l+(n>1?i*(W-l-r)/(n-1):(W-l-r)/2), Y=x=>t+(H-t-b)*(1-x/top);
-  let o=`<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Students timetabled per week">`;
+  let o=`<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Students timetabled per week, by semester">`;
   for(let k=0;k<=4;k++){const g=top*k/4;o+=`<line x1="${l}" x2="${W-r}" y1="${Y(g)}" y2="${Y(g)}" stroke="#dfe4e9"/><text x="${l-8}" y="${Y(g)+4}" text-anchor="end">${Math.round(g)}</text>`}
-  o+=`<polyline fill="none" stroke="#2457d6" stroke-width="2.5" stroke-linejoin="round" points="${v.map((x,i)=>X(i)+','+Y(x)).join(' ')}"/>`;
-  weeks.forEach((k,i)=>{
-    const on=cur&&k.w.label===cur.w.label;
-    o+=`<circle cx="${X(i)}" cy="${Y(v[i])}" r="${on?6:4}" fill="${on?'#2457d6':'#fff'}" stroke="#2457d6" stroke-width="2"><title>${wLabel(k.w.label)} (${dm(k.w.start)}): ${v[i]} students${S.mode==='cum'?' so far':''}</title></circle>`;
-    if(n<=14)o+=`<text x="${X(i)}" y="${Y(v[i])-10}" text-anchor="middle" style="fill:#17222d">${v[i]}</text>`;
-    o+=`<text x="${X(i)}" y="${H-30}" text-anchor="middle" style="fill:#17222d;font-weight:${on?700:400}">${wLabel(k.w.label)}</text><text x="${X(i)}" y="${H-16}" text-anchor="middle">${dm(k.w.start)}</text>`;
+  ms.forEach(m=>{
+    const v=vals[m], wk=bySem[m]||[];
+    o+=`<polyline fill="none" stroke="${LC[m]}" stroke-width="2.5" stroke-linejoin="round" points="${v.map((x,i)=>X(i)+','+Y(x)).join(' ')}"/>`;
+    wk.forEach((k,i)=>{
+      const on=cur&&m===curSem&&k.w.label===cur.w.label, ly=ms.length>1&&m==='S2'?Y(v[i])+20:Y(v[i])-10;
+      o+=`<circle cx="${X(i)}" cy="${Y(v[i])}" r="${on?6:4}" fill="${on?LC[m]:'#fff'}" stroke="${LC[m]}" stroke-width="2"><title>${m==='S1'?'Semester 1':'Semester 2'} ${wLabel(k.w.label)} (${dm(k.w.start)}): ${v[i]} students${S.mode==='cum'?' so far':''}</title></circle>`;
+      if(n<=14)o+=`<text x="${X(i)}" y="${ly}" text-anchor="middle" style="fill:${LC[m]};font-weight:600">${v[i]}</text>`;
+    });
   });
+  const ci=cur&&bySem[curSem]?bySem[curSem].indexOf(cur):-1;
+  for(let i=0;i<n;i++){
+    const k=(bySem.S1||[])[i]||(bySem.S2||[])[i];
+    o+=`<text x="${X(i)}" y="${H-38}" text-anchor="middle" style="fill:#17222d;font-weight:${i===ci?700:400}">${wLabel(k.w.label)}</text>`;
+    ms.forEach((m,j)=>{const w=(bySem[m]||[])[i]; if(w)o+=`<text x="${X(i)}" y="${H-24+j*13}" text-anchor="middle" style="fill:${LC[m]};font-size:10.5px">${dm(w.w.start)}</text>`});
+  }
   return o+'</svg>';
 }
 function barChart(cur,cap){
@@ -331,19 +347,26 @@ function barChart(cur,cap){
 }
 function renderStats(){
   const cap=+S.cfg.capacity||100, cw=weekOf(mondayOf(S.date))||weekOf(S.date), sem=cw?cw.sem:S.cfg.defaultSemester||'S1';
-  const weeks=S.pat.filter(w=>w.sem===sem&&w.type==='Teaching').map(weekData);
-  const cur=cw&&cw.type==='Teaching'?weeks.find(x=>x.w.label===cw.label):null, now=new Date();
-  const slots=weeks.flatMap(x=>x.slots.flatMap(s=>[s.am,s.pm])), pk=weeks.reduce((a,x)=>x.total>a.total?x:a,{total:0,w:{label:''}});
+  const bySem={}; ['S1','S2'].forEach(m=>bySem[m]=S.pat.filter(w=>w.sem===m&&w.type==='Teaching').map(weekData));
+  const weeks=bySem[sem]||[], semName=sem==='S1'?'Semester 1':'Semester 2';
+  const cur=cw&&cw.type==='Teaching'?weeks.find(x=>x.w.label===cw.label):null;
+  const pk=weeks.reduce((a,x)=>x.total>a.total?x:a,{total:0,w:{label:''}});
   const ref=mondayOf(S.date), upto=weeks.filter(x=>x.w.start<=ref), sum=(a,f)=>a.reduce((t,x)=>t+f(x),0);
+  const rng=upto.length?`${wLabel(upto[0].w.label)}–${wLabel(upto[upto.length-1].w.label)}`:'not started';
+  const pct=a=>a.length?Math.round(100*a.reduce((t,v)=>t+Math.min(v,cap),0)/(cap*a.length)):0;
+  const all=weeks.flatMap(x=>x.slots.flatMap(s=>[s.am,s.pm])), ex=weeks.flatMap(x=>x.slots.flatMap(s=>[s.am2,s.pm2])).filter(v=>v!==null);
   const k=[[cur?cur.sessions:0,'sessions this week','Session blocks timetabled in the week on screen'],
-    [sum(upto,x=>x.sessions),'sessions to end of this week','Running total from week 1 of the semester up to and including this week'],
+    [sum(upto,x=>x.sessions),`sessions in ${semName} to date (${rng})`,'Running total for this semester only, from week 1 up to and including the week on screen'],
     [(cur?cur.total:0).toLocaleString(),'student places this week','Each student counts once for every session they are timetabled for'],
-    [sum(upto,x=>x.total).toLocaleString(),'student places to end of this week','Running total from week 1 up to and including this week'],
+    [sum(upto,x=>x.total).toLocaleString(),`student places in ${semName} to date (${rng})`,'Running total for this semester only, from week 1 up to and including the week on screen'],
     [cur?cur.prep:0,'sessions this week not marked Prepared','Sessions in the week on screen whose Requirement Status is not Prepared'],
-    [pk.total?wLabel(pk.w.label):'–','busiest week ('+pk.total+' students)'],[Math.round(100*slots.reduce((a,v)=>a+Math.min(v,cap),0)/(cap*Math.max(1,slots.length)))+'%','average seat use, Mon–Fri']];
-  $('kpis').innerHTML=k.map(([a,b,t])=>`<div class="kpi" title="${t||''}"><b>${a}</b><span>${b}</span></div>`).join('');
+    [pk.total?wLabel(pk.w.label):'–','busiest week in '+semName+' ('+pk.total+' students)']];
+  $('kpis').innerHTML=k.map(([a,b,t])=>`<div class="kpi" title="${t||''}"><b>${a}</b><span>${b}</span></div>`).join('')+
+   `<div class="kpi wide"><div class="two"><div><b>${pct(all)}%</b><span>average seat use</span></div><div><b>${pct(ex)}%</b><span>same, excluding Wed 12:00–17:00</span></div></div>
+    <p class="note">${semName}, ${weeks.length} teaching weeks. Each week has 10 half-day slots (Mon–Fri, AM 08:00–13:00, PM 13:00–21:00). For each slot we take the peak number of students timetabled at the same moment, cap it at ${cap} seats and divide by ${cap}; empty slots count as 0%. The figure is the average of all slots. The second figure leaves out Wednesday afternoon: Wed AM is measured 08:00–12:00 and the Wed PM slot is dropped.</p></div>`;
   document.querySelectorAll('[data-mode]').forEach(b=>b.classList.toggle('on',b.dataset.mode===S.mode));
-  $('lineChart').innerHTML=lineChart(weeks,cur);
+  document.querySelectorAll('[data-line]').forEach(b=>{const off=!S.lines[b.dataset.line];b.classList.toggle('off',off);b.setAttribute('aria-checked',!off)});
+  $('lineChart').innerHTML=lineChart(bySem,cur,sem);
   $('barTitle').textContent=cw?`Seat occupancy · ${wLabel(cw.label)}, ${dm(cw.start)} – ${dm(addDays(cw.start,4))} (capacity ${cap})`:'Seat occupancy';
   $('barChart').innerHTML=barChart(cur,cap);
 }
@@ -363,6 +386,7 @@ document.addEventListener('click',ev=>{
   const t=ev.target.closest('button, #ov'); if(!t) return;
   if(t.id==='ov'||t.id==='cls') return closeDlg();
   if(t.dataset.k) return showDetail(t.dataset.k);
+  if(t.dataset.line){S.lines[t.dataset.line]=!S.lines[t.dataset.line]; return render()}
   if(t.dataset.mode){S.mode=t.dataset.mode; return render()}
   if(t.dataset.hide){S.hide.has(t.dataset.hide)?S.hide.delete(t.dataset.hide):S.hide.add(t.dataset.hide); renderLegend(); render(); return}
   if(t.dataset.view){S.view=t.dataset.view; if(S.view==='day'&&!weekOf(S.date)) {} render(); return}
