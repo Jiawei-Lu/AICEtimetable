@@ -100,11 +100,18 @@ button:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
 .ev .ok{display:inline-block;font-size:11px;opacity:.85;margin-top:2px}
 .ev .cut{visibility:hidden}.ev:hover .cut,.ev:focus-visible .cut{visibility:visible}
 .kpi small{display:block;font-size:11px;color:var(--mute);margin-top:2px}
-.kpi .badge{position:absolute;top:12px;right:12px;max-width:140px;text-align:right;background:#eef3ff;border:1px solid #c6d5fa;border-radius:10px;padding:7px 11px}
-.kpi .badge b{display:block;font-size:24px;line-height:1.1;color:var(--acc)}
-.kpi .badge span{font-size:12px;font-weight:600;color:var(--ink)}
-.kpi .badge small{margin-top:1px;font-size:10.5px}
-@media(max-width:520px){.kpi .badge{position:static;max-width:none;text-align:left;margin-bottom:8px}}
+.kpi .badge{position:absolute;top:12px;right:12px;width:142px;text-align:right;background:#eef3ff;border:1px solid #c6d5fa;border-radius:10px;padding:8px 10px}
+.kpi .badge b{display:block;font-size:26px;line-height:1.1;color:var(--acc)}
+.kpi .badge>span{font-size:12px;font-weight:600;color:var(--ink)}
+.kpi .badge small{margin-top:4px;font-size:10px}
+.rng{position:relative;height:6px;margin:8px 0 5px;border-radius:3px;background:#d7e1fb}
+.rng .fill{position:absolute;top:0;bottom:0;border-radius:3px;background:var(--acc);opacity:.45}
+.rng .avg{position:absolute;top:-3px;bottom:-3px;width:3px;margin-left:-1.5px;border-radius:2px;background:var(--ink)}
+.hl{display:flex;flex-direction:column;gap:1px;font-size:10.5px;color:var(--mute)}
+.hl em{font-style:normal;font-weight:700;color:var(--ink)}
+.hl span:last-child em{color:var(--acc)}
+.kpi.wide .two{min-height:128px;padding-right:150px}
+@media(max-width:520px){.kpi .badge{position:static;width:auto;text-align:left;margin-bottom:8px}.kpi.wide .two{padding-right:0;min-height:0}.hl{flex-direction:row;gap:12px}}
 </style>
 </head>
 <body>
@@ -387,6 +394,8 @@ function renderStats(){
   const all=weeks.flatMap(x=>x.slots.flatMap(s=>[s.am,s.pm])), ex=weeks.flatMap(x=>x.slots.flatMap(s=>[s.am2,s.pm2])).filter(v=>v!==null);
   const wk=cur?cur.slots.flatMap(x=>[x.am,x.pm]):[], wkx=cur?cur.slots.flatMap(x=>[x.am2,x.pm2]).filter(v=>v!==null):[], fw=a=>cur?pct(a)+'%':'–';
   const tdx=upto.flatMap(x=>x.slots.flatMap(z=>[z.am2,z.pm2])).filter(v=>v!==null), td=tdx.length?pct(tdx)+'%':'–';
+  const wp=upto.map(x=>({p:pct(x.slots.flatMap(z=>[z.am2,z.pm2]).filter(v=>v!==null)),l:wLabel(x.w.label)})),
+    hi=wp.reduce((a,b)=>b.p>a.p?b:a,wp[0]||{p:0,l:''}), lo=wp.reduce((a,b)=>b.p<a.p?b:a,wp[0]||{p:0,l:''}), av=tdx.length?pct(tdx):0;
   const k=[[cur?cur.sessions:0,'sessions this week','Session blocks timetabled in the week on screen'],
     [sum(upto,x=>x.sessions),`sessions in ${semName} to date (${rng})`,'Running total for this semester only, from week 1 up to and including the week on screen'],
     [(cur?cur.total:0).toLocaleString(),'student places this week','Each student counts once for every session they are timetabled for'],
@@ -394,8 +403,8 @@ function renderStats(){
     [cur?cur.prep:0,'sessions this week not marked Prepared','Sessions in the week on screen whose Requirement Status is not Prepared'],
     [pk.total?wLabel(pk.w.label):'–','busiest week in '+semName+' ('+pk.total+' students)']];
   $('kpis').innerHTML=k.map(([a,b,t])=>`<div class="kpi" title="${t||''}"><b>${a}</b><span>${b}</span></div>`).join('')+
-   `<div class="kpi wide"><div class="badge" title="Average of every half-day slot from W1 up to the week on screen, excluding Wed 12:00–17:00"><b>${td}</b><span>${semName} to date</span><small>${rng} · excl. Wed 12:00–17:00</small></div><div class="two"><div><b>${fw(wk)}</b><span>average seat use this week</span><small>${semName} average ${pct(all)}%</small></div><div><b>${fw(wkx)}</b><span>same, excluding Wed 12:00–17:00</span><small>${semName} average ${pct(ex)}%</small></div></div>
-    <button class="info-i" data-note aria-expanded="${!!S.note}" aria-label="How average seat use is calculated">i</button>${S.note?`<p class="note">Week on screen: ${cur?wLabel(cur.w.label)+', '+dm(cur.w.start):'no teaching this week'}. Each week has 10 half-day slots (Mon–Fri, AM 09:00–13:00, PM 13:00–17:00). For each slot we take the peak number of students timetabled at the same moment, cap it at ${cap} seats and divide by ${cap}; empty slots count as 0%. The large figures are the average of the ${wk.length} slots of the week on screen, so they change as you move between weeks (the bars below show the same slots day by day). The second figure leaves out Wednesday 12:00–17:00: Wed AM is measured 09:00–12:00 and the Wed PM slot (13:00–17:00) is dropped, so it averages ${wkx.length} slots. The highlighted box at the top right averages the slots (excluding Wed 12:00–17:00) of every teaching week from W1 up to the week on screen (${tdx.length} slots so far). The “${semName} average” lines use the same calculation over all ${weeks.length} teaching weeks (${all.length} and ${ex.length} slots).</p>`:''}</div>`;
+   `<div class="kpi wide"><div class="badge" title="Semester to date: average of all half-day slots from W1 to the week on screen, excluding Wed 12:00–17:00. Bar: lowest to highest weekly average; the tick is the to-date average."><b>${td}</b><span>${semName} to date</span>${wp.length?`<div class="rng"><i class="fill" style="left:${lo.p}%;width:${Math.max(hi.p-lo.p,2)}%"></i><i class="avg" style="left:${av}%"></i></div><div class="hl"><span><em>Low</em> ${lo.p}% · ${lo.l}</span><span><em>High</em> ${hi.p}% · ${hi.l}</span></div>`:''}<small>${rng} · excl. Wed 12:00–17:00</small></div><div class="two"><div><b>${fw(wk)}</b><span>average seat use this week</span><small>${semName} average ${pct(all)}%</small></div><div><b>${fw(wkx)}</b><span>same, excluding Wed 12:00–17:00</span><small>${semName} average ${pct(ex)}%</small></div></div>
+    <button class="info-i" data-note aria-expanded="${!!S.note}" aria-label="How average seat use is calculated">i</button>${S.note?`<p class="note">Week on screen: ${cur?wLabel(cur.w.label)+', '+dm(cur.w.start):'no teaching this week'}. Each week has 10 half-day slots (Mon–Fri, AM 09:00–13:00, PM 13:00–17:00). For each slot we take the peak number of students timetabled at the same moment, cap it at ${cap} seats and divide by ${cap}; empty slots count as 0%. The large figures are the average of the ${wk.length} slots of the week on screen, so they change as you move between weeks (the bars below show the same slots day by day). The second figure leaves out Wednesday 12:00–17:00: Wed AM is measured 09:00–12:00 and the Wed PM slot (13:00–17:00) is dropped, so it averages ${wkx.length} slots. The highlighted box at the top right averages the slots (excluding Wed 12:00–17:00) of every teaching week from W1 up to the week on screen (${tdx.length} slots so far). Below it, Low and High are the weeks with the lowest and highest average over that same range (same calculation); the bar runs from 0 to 100% and the tick marks the to-date average. The “${semName} average” lines use the same calculation over all ${weeks.length} teaching weeks (${all.length} and ${ex.length} slots).</p>`:''}</div>`;
   document.querySelectorAll('[data-mode]').forEach(b=>b.classList.toggle('on',b.dataset.mode===S.mode));
   document.querySelectorAll('[data-line]').forEach(b=>{const off=!S.lines[b.dataset.line];b.classList.toggle('off',off);b.setAttribute('aria-checked',!off)});
   $('lineChart').innerHTML=lineChart(bySem,cur,sem);
