@@ -1,5 +1,4 @@
 <!DOCTYPE html>
-
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -99,6 +98,8 @@ button:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
 .kpi .note{padding-right:34px}
 .ev .np{display:inline-block;background:#fff;color:#a30f0f;font-weight:800;font-size:11px;padding:0 6px;border-radius:3px;margin-top:2px}
 .ev .ok{display:inline-block;font-size:11px;opacity:.85;margin-top:2px}
+.ev .cut{visibility:hidden}.ev:hover .cut,.ev:focus-visible .cut{visibility:visible}
+.kpi small{display:block;font-size:11px;color:var(--mute);margin-top:2px}
 </style>
 </head>
 <body>
@@ -237,8 +238,8 @@ function evHTML(e,idx,dayKey){
   const n=e.cl.lanes.length, wd=100/n, r=e.rows[0], c=pal(r['Programmes'],yearOf(r['Module']),e.type), h=(e.e-e.s)*HPX-1;
   const u=k=>esc([...new Set(e.rows.map(r=>r[k]).filter(x=>x&&x.toUpperCase()!=='NA'))].join('; '));
   const prog=esc([...new Set(e.rows.map(r=>r['Programmes']))].join(', ')), rq=u('Requirements'), pr=u('Preparation Requirement'), st=e.rows.some(r=>r['Requirement Status']!=='Prepared');
-  const more=`<span class="more">Students: ${stu(e)}${pr?'<br>Preparation: '+pr:''}</span>`;
-  return `<button class="ev${c.prac?' prac':''}" data-k="${dayKey}:${idx}" style="background-color:${c.bg};color:${c.fg};border-left-color:${c.base};--b:${c.base};top:${(e.e>e.s?(e.s-START)*HPX:0)}px;height:${h}px;min-height:${h}px;left:calc(${e.lane*wd}% + 3px);width:calc(${wd}% - 6px);--l:calc(${e.lane*wd}% + 3px)"><span class="l"><b>${e.code}</b> ${esc(e.name||'')}</span><span class="l">${st?'<span class="np">Not prepared</span>':'<span class="ok">Prepared</span>'}</span><span class="l">${/practical/i.test(e.type)?`<span class="np">${esc(e.type)}</span>`:`<span class="ok">${esc(e.type||'Computer')}</span>`}</span><span class="l sub">${prog} · ${hm(e.s)}–${hm(e.e)}</span>${rq?`<span class="l rq">Requirements: ${rq}</span>`:''}${more}</button>`;
+  const more=`<span class="more">${prog} · ${hm(e.s)}–${hm(e.e)}<br>Students: ${stu(e)}${pr?'<br>Preparation: '+pr:''}</span>`;
+  return `<button class="ev${c.prac?' prac':''}" data-k="${dayKey}:${idx}" style="background-color:${c.bg};color:${c.fg};border-left-color:${c.base};--b:${c.base};top:${(e.e>e.s?(e.s-START)*HPX:0)}px;height:${h}px;min-height:${h}px;left:calc(${e.lane*wd}% + 3px);width:calc(${wd}% - 6px);--l:calc(${e.lane*wd}% + 3px)"><span class="l"><b>${e.code}</b> ${esc(e.name||'')}</span><span class="l">${st?'<span class="np">Not prepared</span>':'<span class="ok">Prepared</span>'}</span><span class="l">${/practical/i.test(e.type)?`<span class="np">${esc(e.type)}</span>`:`<span class="ok">${esc(e.type||'Computer')}</span>`}</span>${rq?`<span class="l rq">Requirements: ${rq}</span>`:''}${more}</button>`;
 }
 function chipHTML(e,key,i){const r=e.rows[0],c=pal(r['Programmes'],yearOf(r['Module']),e.type);return `<button class="chip${c.prac?' prac':''}" style="background-color:${c.bg};color:${c.fg};border-left:4px solid ${c.base};--b:${c.base}" data-k="${key}:${i}">${e.code}</button>`}
 function renderLegend(){
@@ -247,6 +248,10 @@ function renderLegend(){
     const off=S.hide.has(p+'|'+y);
     return `<button class="lgi${off?' off':''}" role="checkbox" aria-checked="${!off}" data-hide="${p}|${y}"><span class="cb"></span><span class="sw2">${o.c?`<span class="sw" style="background-color:${pal(p,+y,'Computer').bg}"></span>`:''}${o.p?`<span class="sw st" style="background-color:${pal(p,+y,'Practical').bg};--b:${pal(p,+y,'Practical').base}"></span>`:''}</span><span class="lt">Part ${["","I","II","III","IV","V","VI"][+y]||y}</span></button>`}).join('')+'</div>').join('')
     +'<div class="key"><div class="kr"><span class="sw"></span><span>Computer</span></div><div class="kr"><span class="sw st"></span><span>Practical, Practical and Computer</span></div></div>';
+}
+function fitBlocks(){
+  document.querySelectorAll('.ev').forEach(ev=>{const H=ev.clientHeight;
+    ev.querySelectorAll('.l').forEach(l=>l.classList.toggle('cut',l.offsetTop+l.offsetHeight>H-3))});
 }
 const store={};
 function dayCol(d,today){
@@ -264,7 +269,7 @@ function renderTime(days){
   let ax=''; for(let x=START;x<END;x++) ax+=`<div class="h">${x<12?x+'am':x===12?'12pm':(x-12)+'pm'}</div>`;
   h+=`<div class="ax">${ax}</div>`+days.map(d=>dayCol(d,today)).join('')+'</div>';
   $('main').innerHTML=`<div class="sc" id="sc">${h}</div>`;
-  const sc=$('sc'); sc.scrollTop=(10-START)*HPX-20;
+  const sc=$('sc'); sc.scrollTop=(10-START)*HPX-20; fitBlocks();
 }
 function renderMonth(){
   const today=new Date(), y=S.date.getFullYear(), m=S.date.getMonth(), n=S.weekends?7:5;
@@ -375,6 +380,7 @@ function renderStats(){
   const rng=upto.length?`${wLabel(upto[0].w.label)}–${wLabel(upto[upto.length-1].w.label)}`:'not started';
   const pct=a=>a.length?Math.round(100*a.reduce((t,v)=>t+Math.min(v,cap),0)/(cap*a.length)):0;
   const all=weeks.flatMap(x=>x.slots.flatMap(s=>[s.am,s.pm])), ex=weeks.flatMap(x=>x.slots.flatMap(s=>[s.am2,s.pm2])).filter(v=>v!==null);
+  const wk=cur?cur.slots.flatMap(x=>[x.am,x.pm]):[], wkx=cur?cur.slots.flatMap(x=>[x.am2,x.pm2]).filter(v=>v!==null):[], fw=a=>cur?pct(a)+'%':'–';
   const k=[[cur?cur.sessions:0,'sessions this week','Session blocks timetabled in the week on screen'],
     [sum(upto,x=>x.sessions),`sessions in ${semName} to date (${rng})`,'Running total for this semester only, from week 1 up to and including the week on screen'],
     [(cur?cur.total:0).toLocaleString(),'student places this week','Each student counts once for every session they are timetabled for'],
@@ -382,8 +388,8 @@ function renderStats(){
     [cur?cur.prep:0,'sessions this week not marked Prepared','Sessions in the week on screen whose Requirement Status is not Prepared'],
     [pk.total?wLabel(pk.w.label):'–','busiest week in '+semName+' ('+pk.total+' students)']];
   $('kpis').innerHTML=k.map(([a,b,t])=>`<div class="kpi" title="${t||''}"><b>${a}</b><span>${b}</span></div>`).join('')+
-   `<div class="kpi wide"><div class="two"><div><b>${pct(all)}%</b><span>average seat use</span></div><div><b>${pct(ex)}%</b><span>same, excluding Wed 12:00–17:00</span></div></div>
-    <button class="info-i" data-note aria-expanded="${!!S.note}" aria-label="How average seat use is calculated">i</button>${S.note?`<p class="note">${semName}, ${weeks.length} teaching weeks. Each week has 10 half-day slots (Mon–Fri, AM 09:00–13:00, PM 13:00–17:00). For each slot we take the peak number of students timetabled at the same moment, cap it at ${cap} seats and divide by ${cap}; empty slots count as 0%. The first figure is the average of all ${all.length} slots. The second figure leaves out Wednesday 12:00–17:00: Wed AM is measured 09:00–12:00 and the Wed PM slot (13:00–17:00) is dropped, so it averages ${ex.length} slots.</p>`:''}</div>`;
+   `<div class="kpi wide"><div class="two"><div><b>${fw(wk)}</b><span>average seat use this week</span><small>${semName} average ${pct(all)}%</small></div><div><b>${fw(wkx)}</b><span>same, excluding Wed 12:00–17:00</span><small>${semName} average ${pct(ex)}%</small></div></div>
+    <button class="info-i" data-note aria-expanded="${!!S.note}" aria-label="How average seat use is calculated">i</button>${S.note?`<p class="note">Week on screen: ${cur?wLabel(cur.w.label)+', '+dm(cur.w.start):'no teaching this week'}. Each week has 10 half-day slots (Mon–Fri, AM 09:00–13:00, PM 13:00–17:00). For each slot we take the peak number of students timetabled at the same moment, cap it at ${cap} seats and divide by ${cap}; empty slots count as 0%. The large figures are the average of the ${wk.length} slots of the week on screen, so they change as you move between weeks (the bars below show the same slots day by day). The second figure leaves out Wednesday 12:00–17:00: Wed AM is measured 09:00–12:00 and the Wed PM slot (13:00–17:00) is dropped, so it averages ${wkx.length} slots. The grey “${semName} average” lines use the same calculation over all ${weeks.length} teaching weeks (${all.length} and ${ex.length} slots).</p>`:''}</div>`;
   document.querySelectorAll('[data-mode]').forEach(b=>b.classList.toggle('on',b.dataset.mode===S.mode));
   document.querySelectorAll('[data-line]').forEach(b=>{const off=!S.lines[b.dataset.line];b.classList.toggle('off',off);b.setAttribute('aria-checked',!off)});
   $('lineChart').innerHTML=lineChart(bySem,cur,sem);
