@@ -80,6 +80,18 @@ button:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
 .kpi.wide{grid-column:span 2}.kpi .two{display:flex;gap:28px;flex-wrap:wrap}
 .kpi .note{margin:8px 0 0;font-size:11.5px;color:var(--mute);line-height:1.5}
 @media(max-width:520px){.kpi.wide{grid-column:auto}}
+.ev{overflow:hidden}
+.ev .l{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ev .l b{display:inline;font-size:13px}
+.ev .sub{opacity:.85;font-size:11.5px;margin-top:2px}
+.ev .more{display:none;font-size:11.5px;margin-top:6px;padding-top:6px;border-top:1px solid rgba(128,128,128,.5);line-height:1.5}
+.ev:hover,.ev:focus-visible{z-index:40;overflow:visible;height:auto!important;left:3px!important;width:calc(100% - 6px)!important;box-shadow:0 10px 28px rgba(23,34,45,.35)}
+.ev:hover .l,.ev:focus-visible .l{white-space:normal;overflow:visible}
+.ev:hover .more,.ev:focus-visible .more{display:block}
+.kpi.wide{position:relative}
+.info-i{position:absolute;right:10px;bottom:10px;width:22px;height:22px;padding:0;border-radius:50%;background:#6c8fc4;color:#fff;font:700 13px/22px Georgia,serif;text-align:center}
+.info-i:hover{background:#4d74b3}
+.kpi .note{padding-right:34px}
 </style>
 </head>
 <body>
@@ -111,7 +123,7 @@ const DAYS = {mon:1,tue:2,wed:3,thu:4,fri:5,sat:6,sun:7};
 const DN = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
 const MN = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 const $ = id => document.getElementById(id);
-const S = {pat:[], tt:[], cfg:{defaultSemester:'S1'}, view:'week', weekends:false, date:new Date(), hide:new Set(), mode:'weekly', lines:{S1:true,S2:true}};
+const S = {pat:[], tt:[], cfg:{defaultSemester:'S1'}, view:'week', weekends:false, date:new Date(), hide:new Set(), mode:'weekly', lines:{S1:true,S2:true}, note:false};
 
 /* ---------- data ---------- */
 function parseCSV(t){
@@ -215,10 +227,11 @@ function pal(prog,y,type){
 const rowKey=r=>r['Programmes']+'|'+yearOf(r['Module']);
 const esc=t=>t.replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 function evHTML(e,idx,dayKey){
-  const rq=esc([...new Set(e.rows.map(r=>r['Requirements']).filter(x=>x&&x.toUpperCase()!=='NA'))].join('; '));
-  const n=e.cl.lanes.length, wd=100/n, r=e.rows[0], c=pal(r['Programmes'],yearOf(r['Module']),e.type);
-  const prog=[...new Set(e.rows.map(r=>r['Programmes']))].join(', ');
-  return `<button class="ev${c.prac?' prac':''}" title="${e.code} ${e.name}" data-k="${dayKey}:${idx}" style="background-color:${c.bg};color:${c.fg};border-left-color:${c.base};top:${(e.s-START)*HPX}px;height:${(e.e-e.s)*HPX-1}px;left:calc(${e.lane*wd}% + 3px);width:calc(${wd}% - 6px)"><b>${e.code}</b>${e.name||''}<small>${prog} · ${hm(e.s)}–${hm(e.e)}</small>${rq?`<small class="rq">Requirements: ${rq}</small>`:''}</button>`;
+  const n=e.cl.lanes.length, wd=100/n, r=e.rows[0], c=pal(r['Programmes'],yearOf(r['Module']),e.type), h=(e.e-e.s)*HPX-1;
+  const u=k=>esc([...new Set(e.rows.map(r=>r[k]).filter(x=>x&&x.toUpperCase()!=='NA'))].join('; '));
+  const prog=esc([...new Set(e.rows.map(r=>r['Programmes']))].join(', ')), rq=u('Requirements'), pr=u('Preparation Requirement'), st=u('Requirement Status');
+  const more=`<span class="more">${e.type?'Lab type: '+esc(e.type)+'<br>':''}Students: ${stu(e)}${pr?'<br>Preparation: '+pr:''}${st?'<br>Status: '+st:''}</span>`;
+  return `<button class="ev${c.prac?' prac':''}" data-k="${dayKey}:${idx}" style="background-color:${c.bg};color:${c.fg};border-left-color:${c.base};top:${(e.e>e.s?(e.s-START)*HPX:0)}px;height:${h}px;min-height:${h}px;left:calc(${e.lane*wd}% + 3px);width:calc(${wd}% - 6px);--l:calc(${e.lane*wd}% + 3px)"><span class="l"><b>${e.code}</b> ${esc(e.name||'')}</span><span class="l sub">${prog} · ${hm(e.s)}–${hm(e.e)}</span>${rq?`<span class="l rq">Requirements: ${rq}</span>`:''}${more}</button>`;
 }
 function chipHTML(e,key,i){const r=e.rows[0],c=pal(r['Programmes'],yearOf(r['Module']),e.type);return `<button class="chip${c.prac?' prac':''}" style="background-color:${c.bg};color:${c.fg};border-left:4px solid ${c.base}" data-k="${key}:${i}">${e.code}</button>`}
 function renderLegend(){
@@ -295,7 +308,7 @@ function weekData(w){
   for(let i=0;i<5;i++){
     const d=addDays(w.start,i), ev=eventsFor(d,true).ev;
     ev.forEach(e=>{total+=stu(e);sessions++;if(e.rows.some(r=>r['Requirement Status']!=='Prepared'))prep++});
-    const wed=i===2; slots.push({d,am:peak(ev,START,13),pm:peak(ev,13,END),am2:wed?peak(ev,START,12):peak(ev,START,13),pm2:wed?null:peak(ev,13,END)});
+    const wed=i===2; slots.push({d,am:peak(ev,9,13),pm:peak(ev,13,17),am2:wed?peak(ev,9,12):peak(ev,9,13),pm2:wed?null:peak(ev,13,17)});
   }
   return {w,total,sessions,prep,slots};
 }
@@ -363,7 +376,7 @@ function renderStats(){
     [pk.total?wLabel(pk.w.label):'–','busiest week in '+semName+' ('+pk.total+' students)']];
   $('kpis').innerHTML=k.map(([a,b,t])=>`<div class="kpi" title="${t||''}"><b>${a}</b><span>${b}</span></div>`).join('')+
    `<div class="kpi wide"><div class="two"><div><b>${pct(all)}%</b><span>average seat use</span></div><div><b>${pct(ex)}%</b><span>same, excluding Wed 12:00–17:00</span></div></div>
-    <p class="note">${semName}, ${weeks.length} teaching weeks. Each week has 10 half-day slots (Mon–Fri, AM 08:00–13:00, PM 13:00–21:00). For each slot we take the peak number of students timetabled at the same moment, cap it at ${cap} seats and divide by ${cap}; empty slots count as 0%. The figure is the average of all slots. The second figure leaves out Wednesday afternoon: Wed AM is measured 08:00–12:00 and the Wed PM slot is dropped.</p></div>`;
+    <button class="info-i" data-note aria-expanded="${!!S.note}" aria-label="How average seat use is calculated">i</button>${S.note?`<p class="note">${semName}, ${weeks.length} teaching weeks. Each week has 10 half-day slots (Mon–Fri, AM 09:00–13:00, PM 13:00–17:00). For each slot we take the peak number of students timetabled at the same moment, cap it at ${cap} seats and divide by ${cap}; empty slots count as 0%. The figure is the average of all slots. The second figure leaves out Wednesday afternoon: Wed AM is measured 09:00–12:00 and the Wed PM slot is dropped.</p>`:''}</div>`;
   document.querySelectorAll('[data-mode]').forEach(b=>b.classList.toggle('on',b.dataset.mode===S.mode));
   document.querySelectorAll('[data-line]').forEach(b=>{const off=!S.lines[b.dataset.line];b.classList.toggle('off',off);b.setAttribute('aria-checked',!off)});
   $('lineChart').innerHTML=lineChart(bySem,cur,sem);
@@ -386,6 +399,7 @@ document.addEventListener('click',ev=>{
   const t=ev.target.closest('button, #ov'); if(!t) return;
   if(t.id==='ov'||t.id==='cls') return closeDlg();
   if(t.dataset.k) return showDetail(t.dataset.k);
+  if(t.dataset.note){S.note=!S.note; return render()}
   if(t.dataset.line){S.lines[t.dataset.line]=!S.lines[t.dataset.line]; return render()}
   if(t.dataset.mode){S.mode=t.dataset.mode; return render()}
   if(t.dataset.hide){S.hide.has(t.dataset.hide)?S.hide.delete(t.dataset.hide):S.hide.add(t.dataset.hide); renderLegend(); render(); return}
