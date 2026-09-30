@@ -27,7 +27,11 @@ button:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
 .lgi.off{opacity:.35;text-decoration:line-through}
 .sw2{display:inline-flex;gap:2px}
 .sw{display:inline-block;width:14px;height:14px;border-radius:3px;background-color:#c8cfd6;border:1px solid rgba(0,0,0,.15)}
-.st,.prac{background-image:repeating-linear-gradient(135deg,rgba(255,255,255,.4) 0 3px,transparent 3px 7px)}
+.st,.chip.prac{background-image:repeating-linear-gradient(135deg,var(--b,#17222d) 0 3px,#fff 3px 6px);background-repeat:no-repeat}
+.st{background-size:40% 100%}.chip.prac{background-size:12px 100%;padding-left:16px}
+.ev.prac{padding-left:22px}
+.ev.prac::before{content:"";position:absolute;left:0;top:0;bottom:0;width:8%;min-width:8px;max-width:14px;background:repeating-linear-gradient(135deg,var(--b) 0 3px,#fff 3px 6px);pointer-events:none}
+.ev.prac>*{position:relative}
 .key{margin:6px 0 0;font-size:11px;color:var(--mute);line-height:1.9}
 #main{min-width:0}
 .sc{background:var(--paper);border:1px solid var(--line);border-radius:10px;max-height:680px;overflow:auto}
@@ -232,15 +236,15 @@ function evHTML(e,idx,dayKey){
   const n=e.cl.lanes.length, wd=100/n, r=e.rows[0], c=pal(r['Programmes'],yearOf(r['Module']),e.type), h=(e.e-e.s)*HPX-1;
   const u=k=>esc([...new Set(e.rows.map(r=>r[k]).filter(x=>x&&x.toUpperCase()!=='NA'))].join('; '));
   const prog=esc([...new Set(e.rows.map(r=>r['Programmes']))].join(', ')), rq=u('Requirements'), pr=u('Preparation Requirement'), st=e.rows.some(r=>r['Requirement Status']!=='Prepared');
-  const more=`<span class="more">${e.type?'Lab type: '+esc(e.type)+'<br>':''}Students: ${stu(e)}${pr?'<br>Preparation: '+pr:''}</span>`;
-  return `<button class="ev${c.prac?' prac':''}" data-k="${dayKey}:${idx}" style="background-color:${c.bg};color:${c.fg};border-left-color:${c.base};top:${(e.e>e.s?(e.s-START)*HPX:0)}px;height:${h}px;min-height:${h}px;left:calc(${e.lane*wd}% + 3px);width:calc(${wd}% - 6px);--l:calc(${e.lane*wd}% + 3px)"><span class="l"><b>${e.code}</b> ${esc(e.name||'')}</span><span class="l">${st?'<span class="np">Not prepared</span>':'<span class="ok">Prepared</span>'}</span><span class="l sub">${prog} · ${hm(e.s)}–${hm(e.e)}</span>${rq?`<span class="l rq">Requirements: ${rq}</span>`:''}${more}</button>`;
+  const more=`<span class="more">Students: ${stu(e)}${pr?'<br>Preparation: '+pr:''}</span>`;
+  return `<button class="ev${c.prac?' prac':''}" data-k="${dayKey}:${idx}" style="background-color:${c.bg};color:${c.fg};border-left-color:${c.base};--b:${c.base};top:${(e.e>e.s?(e.s-START)*HPX:0)}px;height:${h}px;min-height:${h}px;left:calc(${e.lane*wd}% + 3px);width:calc(${wd}% - 6px);--l:calc(${e.lane*wd}% + 3px)"><span class="l"><b>${e.code}</b> ${esc(e.name||'')}</span><span class="l">${st?'<span class="np">Not prepared</span>':'<span class="ok">Prepared</span>'}</span><span class="l">${/practical/i.test(e.type)?`<span class="np">${esc(e.type)}</span>`:`<span class="ok">${esc(e.type||'Computer')}</span>`}</span><span class="l sub">${prog} · ${hm(e.s)}–${hm(e.e)}</span>${rq?`<span class="l rq">Requirements: ${rq}</span>`:''}${more}</button>`;
 }
-function chipHTML(e,key,i){const r=e.rows[0],c=pal(r['Programmes'],yearOf(r['Module']),e.type);return `<button class="chip${c.prac?' prac':''}" style="background-color:${c.bg};color:${c.fg};border-left:4px solid ${c.base}" data-k="${key}:${i}">${e.code}</button>`}
+function chipHTML(e,key,i){const r=e.rows[0],c=pal(r['Programmes'],yearOf(r['Module']),e.type);return `<button class="chip${c.prac?' prac':''}" style="background-color:${c.bg};color:${c.fg};border-left:4px solid ${c.base};--b:${c.base}" data-k="${key}:${i}">${e.code}</button>`}
 function renderLegend(){
   const m={}; S.tt.forEach(r=>{const p=r['Programmes'],y=yearOf(r['Module']);m[p]=m[p]||{};m[p][y]=m[p][y]||{};m[p][y][/practical/i.test(r['Lab Type'])?'p':'c']=1});
   $('legend').innerHTML=Object.keys(m).sort().map(p=>`<div class="lg"><h3>${p}</h3>`+Object.keys(m[p]).sort().map(y=>{const o=m[p][y];
     const off=S.hide.has(p+'|'+y);
-    return `<button class="lgi${off?' off':''}" role="checkbox" aria-checked="${!off}" data-hide="${p}|${y}"><span class="cb"></span><span class="sw2">${o.c?`<span class="sw" style="background-color:${pal(p,+y,'Computer').bg}"></span>`:''}${o.p?`<span class="sw st" style="background-color:${pal(p,+y,'Practical').bg}"></span>`:''}</span><span class="lt">Year ${y}</span></button>`}).join('')+'</div>').join('')
+    return `<button class="lgi${off?' off':''}" role="checkbox" aria-checked="${!off}" data-hide="${p}|${y}"><span class="cb"></span><span class="sw2">${o.c?`<span class="sw" style="background-color:${pal(p,+y,'Computer').bg}"></span>`:''}${o.p?`<span class="sw st" style="background-color:${pal(p,+y,'Practical').bg};--b:${pal(p,+y,'Practical').base}"></span>`:''}</span><span class="lt">Part ${["","I","II","III","IV","V","VI"][+y]||y}</span></button>`}).join('')+'</div>').join('')
     +'<div class="key"><div class="kr"><span class="sw"></span><span>Computer</span></div><div class="kr"><span class="sw st"></span><span>Practical, Practical and Computer</span></div></div>';
 }
 const store={};
@@ -430,7 +434,6 @@ async function init(){
 }
 init();
 })();
-  
 </script>
 </body>
 </html>
