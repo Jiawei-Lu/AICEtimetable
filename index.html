@@ -68,6 +68,14 @@ button:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
 .key2{font-size:12px;color:var(--mute);display:flex;gap:16px;flex-wrap:wrap;margin-top:6px}
 .key2 i{display:inline-block;width:12px;height:12px;border-radius:2px;margin-right:5px;vertical-align:-1px}
 @media(max-width:520px){.cards{grid-template-columns:1fr}}
+.cb{flex:none;width:16px;height:16px;border:1.5px solid var(--ink);border-radius:4px;background:#fff;position:relative}
+.lgi:not(.off) .cb{background:var(--ink)}
+.lgi:not(.off) .cb::after{content:"";position:absolute;left:4px;top:0;width:4px;height:9px;border:solid #fff;border-width:0 2px 2px 0;transform:rotate(45deg)}
+.lgi.off{opacity:1}.lgi.off .sw2,.lgi.off .lt{opacity:.4;text-decoration:line-through}
+.key{margin-top:8px;padding-top:10px;border-top:1px solid var(--line);text-align:left}
+.kr{display:flex;align-items:flex-start;gap:8px;margin-bottom:6px;font-size:12px;color:var(--mute);line-height:1.3}
+.kr .sw{flex:none}
+.ev .rq{margin-top:3px;opacity:1;font-style:italic}
 </style>
 </head>
 <body>
@@ -188,17 +196,20 @@ function pal(prog,y,type){
   return {bg:`hsl(${(h+(y-1)*8)%360} ${prac?70:48}% ${L}%)`, fg:L<56?'#fff':'#14202a', prac};
 }
 const rowKey=r=>r['Programmes']+'|'+yearOf(r['Module']);
+const esc=t=>t.replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 function evHTML(e,idx,dayKey){
+  const rq=esc([...new Set(e.rows.map(r=>r['Requirements']).filter(x=>x&&x.toUpperCase()!=='NA'))].join('; '));
   const n=e.cl.lanes.length, wd=100/n, r=e.rows[0], c=pal(r['Programmes'],yearOf(r['Module']),e.type);
   const prog=[...new Set(e.rows.map(r=>r['Programmes']))].join(', ');
-  return `<button class="ev${c.prac?' prac':''}" title="${e.code} ${e.name}" data-k="${dayKey}:${idx}" style="background-color:${c.bg};color:${c.fg};top:${(e.s-START)*HPX}px;height:${(e.e-e.s)*HPX-1}px;left:calc(${e.lane*wd}% + 3px);width:calc(${wd}% - 6px)"><b>${e.code}</b>${e.name||''}<small>${prog} · ${hm(e.s)}–${hm(e.e)}</small></button>`;
+  return `<button class="ev${c.prac?' prac':''}" title="${e.code} ${e.name}" data-k="${dayKey}:${idx}" style="background-color:${c.bg};color:${c.fg};top:${(e.s-START)*HPX}px;height:${(e.e-e.s)*HPX-1}px;left:calc(${e.lane*wd}% + 3px);width:calc(${wd}% - 6px)"><b>${e.code}</b>${e.name||''}<small>${prog} · ${hm(e.s)}–${hm(e.e)}</small>${rq?`<small class="rq">Requirements: ${rq}</small>`:''}</button>`;
 }
 function chipHTML(e,key,i){const r=e.rows[0],c=pal(r['Programmes'],yearOf(r['Module']),e.type);return `<button class="chip${c.prac?' prac':''}" style="background-color:${c.bg};color:${c.fg}" data-k="${key}:${i}">${e.code}</button>`}
 function renderLegend(){
   const m={}; S.tt.forEach(r=>{const p=r['Programmes'],y=yearOf(r['Module']);m[p]=m[p]||{};m[p][y]=m[p][y]||{};m[p][y][/practical/i.test(r['Lab Type'])?'p':'c']=1});
   $('legend').innerHTML=Object.keys(m).sort().map(p=>`<div class="lg"><h3>${p}</h3>`+Object.keys(m[p]).sort().map(y=>{const o=m[p][y];
-    return `<button class="lgi${S.hide.has(p+'|'+y)?' off':''}" data-hide="${p}|${y}"><span class="sw2">${o.c?`<span class="sw" style="background-color:${pal(p,+y,'Computer').bg}"></span>`:''}${o.p?`<span class="sw st" style="background-color:${pal(p,+y,'Practical').bg}"></span>`:''}</span>Year ${y}</button>`}).join('')+'</div>').join('')
-    +'<p class="key"><span class="sw"></span> Computer<br><span class="sw st"></span> Practical, Practical and Computer</p>';
+    const off=S.hide.has(p+'|'+y);
+    return `<button class="lgi${off?' off':''}" role="checkbox" aria-checked="${!off}" data-hide="${p}|${y}"><span class="cb"></span><span class="sw2">${o.c?`<span class="sw" style="background-color:${pal(p,+y,'Computer').bg}"></span>`:''}${o.p?`<span class="sw st" style="background-color:${pal(p,+y,'Practical').bg}"></span>`:''}</span><span class="lt">Year ${y}</span></button>`}).join('')+'</div>').join('')
+    +'<div class="key"><div class="kr"><span class="sw"></span><span>Computer</span></div><div class="kr"><span class="sw st"></span><span>Practical, Practical and Computer</span></div></div>';
 }
 const store={};
 function dayCol(d,today){
@@ -310,10 +321,14 @@ function renderStats(){
   const weeks=S.pat.filter(w=>w.sem===sem&&w.type==='Teaching').map(weekData);
   const cur=cw&&cw.type==='Teaching'?weeks.find(x=>x.w.label===cw.label):null, now=new Date();
   const slots=weeks.flatMap(x=>x.slots.flatMap(s=>[s.am,s.pm])), pk=weeks.reduce((a,x)=>x.total>a.total?x:a,{total:0,w:{label:''}});
-  const k=[[weeks.reduce((a,x)=>a+x.sessions,0),'timetabled sessions'],[weeks.reduce((a,x)=>a+x.total,0).toLocaleString(),'student places booked'],
-    [pk.total?wLabel(pk.w.label):'–','busiest week ('+pk.total+' students)'],[Math.round(100*slots.reduce((a,v)=>a+Math.min(v,cap),0)/(cap*Math.max(1,slots.length)))+'%','average seat use, Mon–Fri'],
-    [slots.filter(v=>v>cap).length,'half-days over '+cap+' seats'],[weeks.filter(x=>x.w.end>=now).reduce((a,x)=>a+x.prep,0),'upcoming sessions not marked Prepared']];
-  $('kpis').innerHTML=k.map(([a,b])=>`<div class="kpi"><b>${a}</b><span>${b}</span></div>`).join('');
+  const ref=mondayOf(S.date), upto=weeks.filter(x=>x.w.start<=ref), sum=(a,f)=>a.reduce((t,x)=>t+f(x),0);
+  const k=[[cur?cur.sessions:0,'sessions this week','Session blocks timetabled in the week on screen'],
+    [sum(upto,x=>x.sessions),'sessions to end of this week','Running total from week 1 of the semester up to and including this week'],
+    [(cur?cur.total:0).toLocaleString(),'student places this week','Each student counts once for every session they are timetabled for'],
+    [sum(upto,x=>x.total).toLocaleString(),'student places to end of this week','Running total from week 1 up to and including this week'],
+    [cur?cur.prep:0,'sessions this week not marked Prepared','Sessions in the week on screen whose Requirement Status is not Prepared'],
+    [pk.total?wLabel(pk.w.label):'–','busiest week ('+pk.total+' students)'],[Math.round(100*slots.reduce((a,v)=>a+Math.min(v,cap),0)/(cap*Math.max(1,slots.length)))+'%','average seat use, Mon–Fri']];
+  $('kpis').innerHTML=k.map(([a,b,t])=>`<div class="kpi" title="${t||''}"><b>${a}</b><span>${b}</span></div>`).join('');
   document.querySelectorAll('[data-mode]').forEach(b=>b.classList.toggle('on',b.dataset.mode===S.mode));
   $('lineChart').innerHTML=lineChart(weeks,cur);
   $('barTitle').textContent=cw?`Seat occupancy · ${wLabel(cw.label)}, ${dm(cw.start)} – ${dm(addDays(cw.start,4))} (capacity ${cap})`:'Seat occupancy';
