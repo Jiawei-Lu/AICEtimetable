@@ -39,19 +39,6 @@
 </div>
 
 <script>
-// 内嵌 CSV 数据，绝对保证零跨域、零读取失败
-const embeddedCsvData = `Semester,Part,Module,Programmes,Name,Lab Type,Contact,Preparation Requirement,Day of Week,Start Time,End Time,Total Student Number,Requirements,Requirement Status,SW01,SW02,SW03,SW04,SW05,SW06,SW07,SW08,SW09,SW10,SW11,SW12
-S1,I,AICE1001,AICE,Ethics and Security of Computing,Computer,Han Wu,Check software,Thursday,14,17,58,,Prepared,0,1,0,1,0,0,1,0,0,0,0,0
-S1,I,AICE1002,AICE,Digital Computer Systems,Computer,Graeme Bragg,Check software,Thursday,14,17,58,,Prepared,0,0,0,0,1,1,0,1,0,1,1,0
-S1,I,AICE1003,AICE,High-Level Programming,Computer,Mark Speake,Check software,Tuesday,14,17,58,,Prepared,0,1,0,1,0,0,1,0,0,0,0,0
-S1,I,AICE1004,AICE,Mathematics for AI and Computer Engineering (I),Computer,Sheng Chen,Check software,Thursday,14,17,58,,Prepared,0,1,0,1,0,0,1,0,0,0,0,0
-S1,I,AICE2001,AICE,Scientific Computing,Computer,Hans Fangohr,Check software,Monday,10,12,58,,Prepared,1,1,1,1,1,1,1,1,1,1,1,1
-S1,I,AICE2002,AICE,AI and Learning Machines,Computer,Shiliang Zhang,Check software,Friday,10,13,58,,Prepared,0,1,1,1,1,1,1,1,1,1,1,1
-S1,I,AICE2003,AICE,Electronics,Computer,Theodoros Tsakiris,Check software,Monday,14,17,58,,Prepared,0,0,0,0,0,0,0,0,0,0,0,0
-S1,I,AICE2004,AICE,Parallel and Distributed Computing,Computer,Klaas Knottenbelt,Check software,Friday,14,17,58,,Prepared,0,0,0,0,0,0,0,0,0,0,0,0
-S1,I,AICE3002,AICE,Introduction to Deep Learning,Computer,Klaas Knottenbelt,Check software,Wednesday,10,12,58,,Prepared,1,1,1,1,1,1,1,1,1,1,1,1
-S1,I,AICE6001,AICE,Introduction to Deep Learning,Computer,Klaas Knottenbelt,Check software,Wednesday,10,12,58,,Prepared,1,1,1,1,1,1,1,1,1,1,1,1`;
-
 document.addEventListener("DOMContentLoaded", function() {
     initAiceApp();
 });
@@ -67,22 +54,27 @@ async function initAiceApp() {
     };
     let rawCsvData = [];
     let includeWeekends = false;
-    let baseDate = new Date("2026-09-14");
+    let baseDate = new Date(); // 默认初始化为当前真实系统日期
 
     try {
+        // 1. 读取配置文件 (config.json) 获取每年变动的 week1 开始时间
         const configRes = await fetch('config.json');
         if (configRes.ok) {
             let userConfig = await configRes.json();
             if (userConfig.week1StartDate) globalConfig.week1StartDate = userConfig.week1StartDate.trim();
             if (userConfig.defaultSemester) globalConfig.defaultSemester = String(userConfig.defaultSemester).trim();
         }
-        console.log("当前配置:", globalConfig);
+        console.log("当前生效配置:", globalConfig);
 
-        rawCsvData = parseCSV(embeddedCsvData);
-        console.log("CSV 解析成功，总行数:", rawCsvData.length);
-
-        let parsedDate = new Date(globalConfig.week1StartDate);
-        if (!isNaN(parsedDate.getTime())) baseDate = parsedDate;
+        // 2. 异步通过 fetch 读取真实的完整 CSV 文件
+        const csvRes = await fetch('AICE-Timetable-AY2627.csv');
+        if (csvRes.ok) {
+            const csvText = await csvRes.text();
+            rawCsvData = parseCSV(csvText);
+            console.log("CSV 完整文件加载成功，总行数:", rawCsvData.length);
+        } else {
+            console.error("无法加载 AICE-Timetable-AY2627.csv 文件，请检查文件名");
+        }
     } catch (e) {
         console.error("初始化出错:", e);
     }
@@ -108,23 +100,28 @@ async function initAiceApp() {
 
         const startOfWeek = new Date(baseDate);
         if (isNaN(startOfWeek.getTime())) {
-            baseDate = new Date("2026-09-14");
+            baseDate = new Date();
             return;
         }
         const dayOfWeek = startOfWeek.getDay();
         const diffToMon = startOfWeek.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1);
         startOfWeek.setDate(diffToMon);
 
+        // 计算当前周数
         const weekOneDate = new Date(globalConfig.week1StartDate);
         const diffTime = startOfWeek.getTime() - weekOneDate.getTime();
         const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
         
         let currentWeekNum = Math.floor(diffDays / 7) + 1;
-        currentWeekNum = Math.max(1, currentWeekNum);
+        
+        // 核心要求 2：W1 之前不显示课程，且上方日期部分不显示 Week number
+        const isBeforeWeek1 = currentWeekNum < 1;
+        const weekKey = isBeforeWeek1 ? "" : "SW" + (currentWeekNum < 10 ? "0" + currentWeekNum : currentWeekNum);
 
-        const weekKey = "SW" + (currentWeekNum < 10 ? "0" + currentWeekNum : currentWeekNum);
-
-        let headerHtml = `<div style="padding: 8px; text-align: center; font-size: 11px; font-weight: bold; color: #a19f9d; border-right: 1px solid #e1dfdd; display: flex; align-items: center; justify-content: center;">W${currentWeekNum}</div>`;
+        // 渲染表头左上角：W1之前保持空白
+        let headerLabelHtml = isBeforeWeek1 ? "" : `W${currentWeekNum}`;
+        let headerHtml = `<div style="padding: 8px; text-align: center; font-size: 11px; font-weight: bold; color: #a19f9d; border-right: 1px solid #e1dfdd; display: flex; align-items: center; justify-content: center;">${headerLabelHtml}</div>`;
+        
         const daysNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
         for (let i = 0; i < totalDays; i++) {
             let curr = new Date(startOfWeek);
@@ -144,60 +141,63 @@ async function initAiceApp() {
         const colors = ["#c3d66b", "#9e6b9e", "#90baf0", "#f0baf0", "#f0d090"];
         let renderCount = 0;
 
-        rawCsvData.forEach((row, idx) => {
-            const sem = row['Semester'] ? row['Semester'].trim().toUpperCase() : "";
-            if (sem !== globalConfig.defaultSemester.toUpperCase()) return;
-            
-            const weekVal = row[weekKey] !== undefined ? String(row[weekKey]).trim() : "0";
-            if (weekVal !== "1") return;
+        // 只有当大于等于 W1 时才去匹配并渲染 CSV 中的课程
+        if (!isBeforeWeek1) {
+            rawCsvData.forEach((row, idx) => {
+                const sem = row['Semester'] ? row['Semester'].trim().toUpperCase() : "";
+                if (sem !== globalConfig.defaultSemester.toUpperCase()) return;
+                
+                const weekVal = row[weekKey] !== undefined ? String(row[weekKey]).trim() : "0";
+                if (weekVal !== "1") return;
 
-            const dayStr = row['Day of Week'] ? row['Day of Week'].trim().toLowerCase() : '';
-            // 完美补全星期映射
-            const dayMap = { 
-                'monday': 1, 'mon': 1, 
-                'tuesday': 2, 'tue': 2, 
-                'wednesday': 3, 'wed': 3, 
-                'thursday': 4, 'thu': 4, 
-                'friday': 5, 'fri': 5, 
-                'saturday': 6, 'sat': 6, 
-                'sunday': 7, 'sun': 7 
-            };
-            const dIndex = dayMap[dayStr];
-            if (!dIndex || dIndex > totalDays) return;
+                const dayStr = row['Day of Week'] ? row['Day of Week'].trim().toLowerCase() : '';
+                const dayMap = { 
+                    'monday': 1, 'mon': 1, 
+                    'tuesday': 2, 'tue': 2, 
+                    'wednesday': 3, 'wed': 3, 
+                    'thursday': 4, 'thu': 4, 
+                    'friday': 5, 'fri': 5, 
+                    'saturday': 6, 'sat': 6, 
+                    'sunday': 7, 'sun': 7 
+                };
+                const dIndex = dayMap[dayStr];
+                if (!dIndex || dIndex > totalDays) return;
 
-            const targetCol = wrapper.querySelector(`.aice-day-col[data-day-index="${dIndex}"]`);
-            if (!targetCol) return;
+                const targetCol = wrapper.querySelector(`.aice-day-col[data-day-index="${dIndex}"]`);
+                if (!targetCol) return;
 
-            const sh = Number(row['Start Time']);
-            const eh = Number(row['End Time']);
-            if (isNaN(sh) || isNaN(eh)) return;
+                const sh = Number(row['Start Time']);
+                const eh = Number(row['End Time']);
+                if (isNaN(sh) || isNaN(eh)) return;
 
-            const moduleCode = row['Module'] || '';
-            const moduleName = row['Name'] || '';
-            const roomPart = row['Programmes'] || "32 / 3027 ECS Teaching Lab";
-            const bgColor = colors[idx % colors.length];
+                const moduleCode = row['Module'] || '';
+                const moduleName = row['Name'] || '';
+                const roomPart = row['Programmes'] || "32 / 3027 ECS Teaching Lab";
+                const bgColor = colors[idx % colors.length];
 
-            const topPx = (sh - 8) * 60;
-            const heightPx = (eh - sh) * 60;
+                const topPx = (sh - 8) * 60;
+                const heightPx = (eh - sh) * 60;
 
-            const card = document.createElement('div');
-            card.style.cssText = `position: absolute; top: ${topPx}px; left: 4px; right: 4px; height: ${heightPx}px; background-color: ${bgColor}; color: #1f1f1f; border-radius: 4px; padding: 6px 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); overflow: hidden; box-sizing: border-box; display: flex; flex-direction: column; justify-content: space-between;`;
+                const card = document.createElement('div');
+                card.style.cssText = `position: absolute; top: ${topPx}px; left: 4px; right: 4px; height: ${heightPx}px; background-color: ${bgColor}; color: #1f1f1f; border-radius: 4px; padding: 6px 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); overflow: hidden; box-sizing: border-box; display: flex; flex-direction: column; justify-content: space-between;`;
 
-            card.innerHTML = `
-                <div style="position: relative; z-index: 2;">
-                    <div style="font-size: 11px; font-weight: bold; line-height: 1.2;">${moduleCode} - ${moduleName}</div>
-                    <div style="font-size: 10px; opacity: 0.9; margin-top: 2px;">${roomPart}</div>
-                </div>
-            `;
-            targetCol.appendChild(card);
-            renderCount++;
-        });
+                card.innerHTML = `
+                    <div style="position: relative; z-index: 2;">
+                        <div style="font-size: 11px; font-weight: bold; line-height: 1.2;">${moduleCode} - ${moduleName}</div>
+                        <div style="font-size: 10px; opacity: 0.9; margin-top: 2px;">${roomPart}</div>
+                    </div>
+                `;
+                targetCol.appendChild(card);
+                renderCount++;
+            });
+        }
 
-        console.log(`[渲染成功] 周次 ${weekKey}: 成功渲染了 ${renderCount} 节课`);
+        console.log(`[渲染] 周次 ${weekKey || 'Pre-W1'}: 成功渲染了 ${renderCount} 节课`);
 
         const end = new Date(startOfWeek);
         end.setDate(startOfWeek.getDate() + (totalDays - 1));
-        document.getElementById('aice-date-title').innerText = `${startOfWeek.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – ${end.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} (W${currentWeekNum})`;
+        const weekTitleSuffix = isBeforeWeek1 ? "" : ` (W${currentWeekNum})`;
+        document.getElementById('aice-date-title').innerText = `${startOfWeek.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – ${end.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}${weekTitleSuffix}`;
     }
 
     function parseCSV(text) {
@@ -248,7 +248,7 @@ async function initAiceApp() {
         refresh();
     };
     document.getElementById('aice-today-btn').onclick = function() {
-        baseDate = new Date(globalConfig.week1StartDate);
+        baseDate = new Date(); // 核心要求 3：点击 today 按钮或刷新时采用当前真实系统日期
         refresh();
     };
     document.getElementById('aice-weekend-btn').onclick = function() {
