@@ -26,7 +26,7 @@
             </div>
             <div id="aice-date-title" style="font-weight: bold; font-size: 14px; color: #201f1e; text-align: center; flex-grow: 1;">Loading...</div>
             <div style="font-size: 12px; font-weight: bold; color: #10324a; background: #e1dfdd; padding: 4px 10px; border-radius: 4px;">
-                显示模式: 全学期合并 (S1 + S2)
+                模式: 纯CSV周列驱动
             </div>
         </div>
 
@@ -107,6 +107,7 @@
             
             const isBeforeWeek1 = currentWeekNum < 1;
             const weekKey = isBeforeWeek1 ? "" : "SW" + (currentWeekNum < 10 ? "0" + currentWeekNum : currentWeekNum);
+            const weekKeyAlt = weekKey + ".1";
 
             let headerLabelHtml = isBeforeWeek1 ? "" : `W${currentWeekNum}`;
             let headerHtml = `<div style="padding: 8px; text-align: center; font-size: 11px; font-weight: bold; color: #a19f9d; border-right: 1px solid #e1dfdd; display: flex; align-items: center; justify-content: center;">${headerLabelHtml}</div>`;
@@ -130,11 +131,11 @@
 
             if (!isBeforeWeek1 && rawCsvData.length > 0) {
                 rawCsvData.forEach((row, idx) => {
-                    const sem = row['Semester'] ? row['Semester'].replace(/^\uFEFF/, '').trim().toUpperCase() : "";
-                    const val = row[weekKey] !== undefined ? String(row[weekKey]).trim() : "0";
-
-                    // 不再过滤学期，只要该周有安排 (val === "1") 就渲染
-                    if (val !== "1") return;
+                    // 直接检查对应周的列 (SWxx 或 SWxx.1) 是否等于 "1"
+                    const val1 = row[weekKey] !== undefined ? String(row[weekKey]).trim() : "0";
+                    const val2 = row[weekKeyAlt] !== undefined ? String(row[weekKeyAlt]).trim() : "0";
+                    
+                    if (val1 !== "1" && val2 !== "1") return;
 
                     const dayStr = row['Day of Week'] ? row['Day of Week'].trim().toLowerCase() : '';
                     const dayMap = { 
@@ -165,7 +166,7 @@
 
                     card.innerHTML = `
                         <div style="position: relative; z-index: 2;">
-                            <div style="font-size: 11px; font-weight: bold; line-height: 1.2;">[${sem}] ${moduleCode} - ${moduleName}</div>
+                            <div style="font-size: 11px; font-weight: bold; line-height: 1.2;">${moduleCode} - ${moduleName}</div>
                             <div style="font-size: 10px; opacity: 0.9; margin-top: 2px;">${row['Programmes'] || ''}</div>
                         </div>
                     `;
@@ -178,7 +179,7 @@
             end.setDate(startOfWeek.getDate() + (totalDays - 1));
             document.getElementById('aice-date-title').innerText = `${startOfWeek.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – ${end.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} (W${currentWeekNum})`;
             
-            showDebug(`当前周数: W${currentWeekNum} | S1 + S2 合并共渲染 ${renderCount} 节课`);
+            showDebug(`当前周数: W${currentWeekNum} | 成功渲染 ${renderCount} 节课`);
         }
 
         function parseCSV(text) {
