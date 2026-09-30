@@ -54,10 +54,10 @@ async function initAiceApp() {
     };
     let rawCsvData = [];
     let includeWeekends = false;
-    let baseDate = new Date(); // 默认初始化为当前真实系统日期
+    let baseDate = new Date(); // 刷新网页时默认读取当前系统日期
 
     try {
-        // 1. 读取配置文件 (config.json) 获取每年变动的 week1 开始时间
+        // 1. 读取 config.json
         const configRes = await fetch('config.json');
         if (configRes.ok) {
             let userConfig = await configRes.json();
@@ -66,14 +66,14 @@ async function initAiceApp() {
         }
         console.log("当前生效配置:", globalConfig);
 
-        // 2. 异步通过 fetch 读取真实的完整 CSV 文件
+        // 2. 异步读取完整的 CSV 文件
         const csvRes = await fetch('AICE-Timetable-AY2627.csv');
         if (csvRes.ok) {
             const csvText = await csvRes.text();
             rawCsvData = parseCSV(csvText);
             console.log("CSV 完整文件加载成功，总行数:", rawCsvData.length);
         } else {
-            console.error("无法加载 AICE-Timetable-AY2627.csv 文件，请检查文件名");
+            console.error("无法加载 AICE-Timetable-AY2627.csv 文件");
         }
     } catch (e) {
         console.error("初始化出错:", e);
@@ -117,8 +117,9 @@ async function initAiceApp() {
         // 核心要求 2：W1 之前不显示课程，且上方日期部分不显示 Week number
         const isBeforeWeek1 = currentWeekNum < 1;
         const weekKey = isBeforeWeek1 ? "" : "SW" + (currentWeekNum < 10 ? "0" + currentWeekNum : currentWeekNum);
+        const weekKeyAlt = isBeforeWeek1 ? "" : weekKey + ".1"; // 同时兼容带有 .1 后缀的第二套列
 
-        // 渲染表头左上角：W1之前保持空白
+        // 渲染表头左上角
         let headerLabelHtml = isBeforeWeek1 ? "" : `W${currentWeekNum}`;
         let headerHtml = `<div style="padding: 8px; text-align: center; font-size: 11px; font-weight: bold; color: #a19f9d; border-right: 1px solid #e1dfdd; display: flex; align-items: center; justify-content: center;">${headerLabelHtml}</div>`;
         
@@ -147,8 +148,10 @@ async function initAiceApp() {
                 const sem = row['Semester'] ? row['Semester'].trim().toUpperCase() : "";
                 if (sem !== globalConfig.defaultSemester.toUpperCase()) return;
                 
-                const weekVal = row[weekKey] !== undefined ? String(row[weekKey]).trim() : "0";
-                if (weekVal !== "1") return;
+                // 同时检查主列和 .1 备用列（只要有一处为 1 就代表本周有课）
+                const val1 = row[weekKey] !== undefined ? String(row[weekKey]).trim() : "0";
+                const val2 = row[weekKeyAlt] !== undefined ? String(row[weekKeyAlt]).trim() : "0";
+                if (val1 !== "1" && val2 !== "1") return;
 
                 const dayStr = row['Day of Week'] ? row['Day of Week'].trim().toLowerCase() : '';
                 const dayMap = { 
@@ -236,7 +239,6 @@ async function initAiceApp() {
         globalConfig.defaultSemester = "S2";
         this.style.background = "rgba(255,255,255,0.2)";
         document.getElementById('sem1-btn').style.background = "transparent";
-        refresh();
     };
 
     document.getElementById('aice-prev-btn').onclick = function() {
@@ -248,7 +250,7 @@ async function initAiceApp() {
         refresh();
     };
     document.getElementById('aice-today-btn').onclick = function() {
-        baseDate = new Date(); // 核心要求 3：点击 today 按钮或刷新时采用当前真实系统日期
+        baseDate = new Date(); // 点击 today 按钮回到当前真实系统日期
         refresh();
     };
     document.getElementById('aice-weekend-btn').onclick = function() {
