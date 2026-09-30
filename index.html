@@ -172,7 +172,6 @@
 
             if (!isBeforeWeek1 && rawCsvData.length > 0) {
                 rawCsvData.forEach((row, idx) => {
-                    // 清理学期字符串，去除可能存在的BOM和空格
                     const sem = row['Semester'] ? row['Semester'].replace(/^\uFEFF/, '').trim().toUpperCase() : "";
                     if (sem !== globalConfig.defaultSemester.toUpperCase()) return;
                     
