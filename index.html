@@ -25,11 +25,8 @@
                 <button type="button" id="aice-weekend-btn" style="background: #10324a; color: white; border: none; padding: 5px 10px; cursor: pointer; border-radius: 4px; font-size: 12px;">Show Weekends</button>
             </div>
             <div id="aice-date-title" style="font-weight: bold; font-size: 14px; color: #201f1e; text-align: center; flex-grow: 1;">Loading...</div>
-            <div style="display: flex; align-items: center; gap: 10px;">
-                <div style="background: #10324a; padding: 2px; border-radius: 4px; display: flex; color: white; font-size: 11px;">
-                    <span id="sem1-btn" style="padding: 3px 8px; background: rgba(255,255,255,0.2); border-radius: 2px; cursor: pointer;">semester S1</span>
-                    <span id="sem2-btn" style="padding: 3px 8px; cursor: pointer;">semester S2</span>
-                </div>
+            <div style="font-size: 12px; font-weight: bold; color: #10324a; background: #e1dfdd; padding: 4px 10px; border-radius: 4px;">
+                显示模式: 全学期合并 (S1 + S2)
             </div>
         </div>
 
@@ -46,7 +43,7 @@
 
     <script>
     (function() {
-        let globalConfig = { week1StartDate: "2026-09-14", defaultSemester: "S1" };
+        let globalConfig = { week1StartDate: "2026-09-14" };
         let rawCsvData = [];
         let includeWeekends = false;
         let baseDate = new Date();
@@ -63,7 +60,7 @@
                 if (csvRes.ok) {
                     const csvText = await csvRes.text();
                     rawCsvData = parseCSV(csvText);
-                    showDebug(`CSV 加载成功！共解析 ${rawCsvData.length} 行。表头: ${Object.keys(rawCsvData[0] || {}).join(', ')}`);
+                    showDebug(`CSV 加载成功！共解析 ${rawCsvData.length} 行。`);
                 } else {
                     showDebug("错误: CSV 加载失败 (" + csvRes.status + ")");
                     return;
@@ -110,8 +107,6 @@
             
             const isBeforeWeek1 = currentWeekNum < 1;
             const weekKey = isBeforeWeek1 ? "" : "SW" + (currentWeekNum < 10 ? "0" + currentWeekNum : currentWeekNum);
-            
-            console.log(`--- 渲染诊断 --- 当前周数: W${currentWeekNum}, 寻找的列名: ${weekKey}, 当前学期: ${globalConfig.defaultSemester}`);
 
             let headerLabelHtml = isBeforeWeek1 ? "" : `W${currentWeekNum}`;
             let headerHtml = `<div style="padding: 8px; text-align: center; font-size: 11px; font-weight: bold; color: #a19f9d; border-right: 1px solid #e1dfdd; display: flex; align-items: center; justify-content: center;">${headerLabelHtml}</div>`;
@@ -130,21 +125,27 @@
             }
             wrapper.innerHTML = colsHtml;
 
-            const colors = ["#c3d66b", "#9e6b9e", "#90baf0", "#f0baf0", "#f0d090"];
+            const colors = ["#c3d66b", "#9e6b9e", "#90baf0", "#f0baf0", "#f0d090", "#ffb3ba", "#ffdfba", "#ffffba"];
             let renderCount = 0;
 
             if (!isBeforeWeek1 && rawCsvData.length > 0) {
                 rawCsvData.forEach((row, idx) => {
                     const sem = row['Semester'] ? row['Semester'].replace(/^\uFEFF/, '').trim().toUpperCase() : "";
                     const val = row[weekKey] !== undefined ? String(row[weekKey]).trim() : "0";
-                    
-                    console.log(`行 ${idx}: Module=${row['Module']}, Semester='${sem}', ${weekKey}='${val}', Day='${row['Day of Week']}'`);
 
-                    if (sem !== globalConfig.defaultSemester.toUpperCase()) return;
+                    // 不再过滤学期，只要该周有安排 (val === "1") 就渲染
                     if (val !== "1") return;
 
                     const dayStr = row['Day of Week'] ? row['Day of Week'].trim().toLowerCase() : '';
-                    const dayMap = { 'monday': 1, 'mon': 1, 'tuesday': 2, 'tue': 2, 'wednesday': 3, 'wed': 3, 'thursday': 4, 'thu': 4, 'friday': 5, 'fri': 5 };
+                    const dayMap = { 
+                        'monday': 1, 'mon': 1, 
+                        'tuesday': 2, 'tue': 2, 
+                        'wednesday': 3, 'wed': 3, 
+                        'thursday': 4, 'thu': 4, 
+                        'friday': 5, 'fri': 5, 
+                        'saturday': 6, 'sat': 6, 
+                        'sunday': 7, 'sun': 7 
+                    };
                     const dIndex = dayMap[dayStr];
                     if (!dIndex || dIndex > totalDays) return;
 
@@ -155,15 +156,29 @@
                     const eh = Number(row['End Time']);
                     if (isNaN(sh) || isNaN(eh)) return;
 
+                    const moduleCode = row['Module'] || '';
+                    const moduleName = row['Name'] || '';
+                    const cardColor = colors[renderCount % colors.length];
+
                     const card = document.createElement('div');
-                    card.style.cssText = `position: absolute; top: ${(sh - 8)*60}px; left: 4px; right: 4px; height: ${(eh - sh)*60}px; background-color: ${colors[renderCount % colors.length]}; color: #1f1f1f; border-radius: 4px; padding: 6px 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); overflow: hidden;`;
-                    card.innerHTML = `<div style="font-size: 11px; font-weight: bold;">${row['Module']} - ${row['Name']}</div>`;
+                    card.style.cssText = `position: absolute; top: ${(sh - 8)*60}px; left: 4px; right: 4px; height: ${(eh - sh)*60}px; background-color: ${cardColor}; color: #1f1f1f; border-radius: 4px; padding: 6px 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); overflow: hidden; box-sizing: border-box; display: flex; flex-direction: column; justify-content: space-between;`;
+
+                    card.innerHTML = `
+                        <div style="position: relative; z-index: 2;">
+                            <div style="font-size: 11px; font-weight: bold; line-height: 1.2;">[${sem}] ${moduleCode} - ${moduleName}</div>
+                            <div style="font-size: 10px; opacity: 0.9; margin-top: 2px;">${row['Programmes'] || ''}</div>
+                        </div>
+                    `;
                     targetCol.appendChild(card);
                     renderCount++;
                 });
             }
 
-            showDebug(`显示: ${globalConfig.defaultSemester} | W${currentWeekNum} | 成功渲染 ${renderCount} 节课 (看控制台F12详情)`);
+            const end = new Date(startOfWeek);
+            end.setDate(startOfWeek.getDate() + (totalDays - 1));
+            document.getElementById('aice-date-title').innerText = `${startOfWeek.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – ${end.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })} (W${currentWeekNum})`;
+            
+            showDebug(`当前周数: W${currentWeekNum} | S1 + S2 合并共渲染 ${renderCount} 节课`);
         }
 
         function parseCSV(text) {
@@ -185,18 +200,6 @@
         }
 
         function setupEventListeners() {
-            document.getElementById('sem1-btn').onclick = function() {
-                globalConfig.defaultSemester = "S1";
-                this.style.background = "rgba(255,255,255,0.2)";
-                document.getElementById('sem2-btn').style.background = "transparent";
-                refresh();
-            };
-            document.getElementById('sem2-btn').onclick = function() {
-                globalConfig.defaultSemester = "S2";
-                this.style.background = "rgba(255,255,255,0.2)";
-                document.getElementById('sem1-btn').style.background = "transparent";
-                refresh();
-            };
             document.getElementById('aice-prev-btn').onclick = function() { baseDate.setDate(baseDate.getDate() - 7); refresh(); };
             document.getElementById('aice-next-btn').onclick = function() { baseDate.setDate(baseDate.getDate() + 7); refresh(); };
             document.getElementById('aice-today-btn').onclick = function() { baseDate = new Date(); refresh(); };
