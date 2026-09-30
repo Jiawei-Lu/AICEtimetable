@@ -61,10 +61,10 @@
                     fetch('AICE-Timetable-AY2627.csv')
                 ]);
 
-                if (patternRes.ok) weekPatternData = parseCSV(await patternRes.text());
+                if (patternRes.ok) weekPatternData = parseCSVPattern(await patternRes.text());
                 else { showDebug("错误: Week-Pattern-AY2627.csv 加载失败"); return; }
 
-                if (timetableRes.ok) rawTimetableData = parseCSV(await timetableRes.text());
+                if (timetableRes.ok) rawTimetableData = parseCSVTimetable(await timetableRes.text());
                 else { showDebug("错误: AICE-Timetable-AY2627.csv 加载失败"); return; }
 
                 showDebug(`加载成功！对照表: ${weekPatternData.length} 行, 课表: ${rawTimetableData.length} 行。`);
@@ -96,6 +96,68 @@
             return new Date(parts[2], parts[1] - 1, parts[0]);
         }
 
+        // 专门解析 Week Pattern，只提取真正的 S1 和 S2 教学周
+        function parseCSVPattern(text) {
+            const lines = text.split(/\r\n|\n/);
+            if(lines.length === 0) return [];
+            const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g, '').replace(/^\uFEFF/, ''));
+            const result = [];
+            for (let i = 1; i < lines.length; i++) {
+                if (!lines[i].trim()) continue;
+                const currentline = lines[i].split(',');
+                const obj = {};
+                for (let j = 0; j < headers.length; j++) {
+                    let val = currentline[j] ? currentline[j].trim() : '';
+                    obj[headers[j]] = val.replace(/^"|"$/g, '').replace(/\r$/, '');
+                }
+                
+                let rawSem = obj['Semester'] || '';
+                let semCode = '';
+                if (rawSem.toLowerCase() === 'semester 1') semCode = 'S1';
+                else if (rawSem.toLowerCase() === 'semester 2') semCode = 'S2';
+                else continue; // 过滤掉后面的 Semester 3, 4 等非 S1/S2 的杂项
+
+                obj['NormalizedSemester'] = semCode;
+                result.push(obj);
+            }
+            return result;
+        }
+
+        // 专门解析课表 CSV，处理重复的周列名（前一半归S1，后一半归S2）
+        function parseCSVTimetable(text) {
+            const lines = text.split(/\r\n|\n/);
+            if(lines.length === 0) return [];
+            const rawHeaders = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g, '').replace(/^\uFEFF/, ''));
+            
+            // 给重复的列名加上后缀以区分 S1 和 S2
+            const headers = [];
+            let seenCount = {};
+            rawHeaders.forEach(h => {
+                if (h.startsWith('SW') || h.startsWith('HW') || h.startsWith('EW') || h.startsWith('CW')) {
+                    if (!seenCount[h]) seenCount[h] = 1;
+                    else seenCount[h]++;
+                    
+                    if (seenCount[h] === 1) headers.push(h + '_S1');
+                    else headers.push(h + '_S2');
+                } else {
+                    headers.push(h);
+                }
+            });
+
+            const result = [];
+            for (let i = 1; i < lines.length; i++) {
+                if (!lines[i].trim()) continue;
+                const currentline = lines[i].split(',');
+                const obj = {};
+                for (let j = 0; j < headers.length; j++) {
+                    let val = currentline[j] ? currentline[j].trim() : '';
+                    obj[headers[j]] = val.replace(/^"|"$/g, '').replace(/\r$/, '');
+                }
+                result.push(obj);
+            }
+            return result;
+        }
+
         function getCurrentWeekInfo(targetDate) {
             for (let row of weekPatternData) {
                 const start = parseUKDate(row['Week Start Date']);
@@ -106,27 +168,10 @@
                     targetDate.setHours(12,0,0,0);
 
                     if (targetDate >= start && targetDate <= end) {
-                        let rawSem = row['Semester'] ? row['Semester'].trim() : '';
-                        let semCode = '';
-                        
-                        // 精准匹配学期名称
-                        const lowerSem = rawSem.toLowerCase();
-                        if (lowerSem === 'semester 1') semCode = 'S1';
-                        else if (lowerSem === 'semester 2') semCode = 'S2';
-                        else {
-                            // 其它情况尝试正则提取数字
-                            const match = rawSem.match(/^semester\s+(\d+)$/i);
-                            if (match) {
-                                semCode = 'S' + match[1];
-                            } else {
-                                semCode = rawSem;
-                            }
-                        }
-
                         return {
                             weekLabel: row['Week Label'] ? row['Week Label'].trim() : '', 
-                            semester: semCode,
-                            rawSemester: rawSem,
+                            semester: row['NormalizedSemester'], // S1 或 S2
+                            rawSemester: row['Semester'],
                             weekType: row['Week Type'] ? row['Week Type'].trim() : '',
                             startDate: start,
                             endDate: end
@@ -181,13 +226,15 @@
 
             if (weekKey && currentSemester && rawTimetableData.length > 0) {
                 rawTimetableData.forEach((row) => {
-                    // 严格校验学期：课表中的 Semester 必须与当前周所属的学期一致（如 S1 对应 S1）
                     const rowSem = row['Semester'] ? row['Semester'].trim().toUpperCase() : "";
-                    if (rowSem !== currentSemester.toUpperCase()) return;
+                    // 严格匹配学期
+                    if (rowSem !== currentSemester) return;
 
-                    // 检查对应周列是否有课 ("1")
-                    const val = row[weekKey] !== undefined ? String(row[weekKey]).trim() : "0";
-                    if (val !== "1") return;
+                    // 根据当前学期拼接对应的列后缀（S1 用 _S1，S2 用 _S2）
+                    const lookupKey = weekKey + "_" + currentSemester;
+                    const val = row[lookupKey] !== undefined ? String(row[lookupKey]).trim() : "0";
+                    
+                    if (val !== "1") return; // 只有标记为 1 的才渲染
 
                     const dayStr = row['Day of Week'] ? row['Day of Week'].trim().toLowerCase() : '';
                     const dayMap = { 
@@ -232,24 +279,6 @@
             document.getElementById('aice-date-title').innerText = `${startOfWeek.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – ${end.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`;
             
             showDebug(`学期: ${currentSemester} | 周次: ${weekKey} | 成功渲染 ${renderCount} 节课`);
-        }
-
-        function parseCSV(text) {
-            const lines = text.split(/\r\n|\n/);
-            if(lines.length === 0) return [];
-            const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g, '').replace(/^\uFEFF/, ''));
-            const result = [];
-            for (let i = 1; i < lines.length; i++) {
-                if (!lines[i].trim()) continue;
-                const currentline = lines[i].split(',');
-                const obj = {};
-                for (let j = 0; j < headers.length; j++) {
-                    let val = currentline[j] ? currentline[j].trim() : '';
-                    obj[headers[j]] = val.replace(/^"|"$/g, '').replace(/\r$/, '');
-                }
-                result.push(obj);
-            }
-            return result;
         }
 
         function setupEventListeners() {
