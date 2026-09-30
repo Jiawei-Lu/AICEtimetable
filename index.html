@@ -11,7 +11,7 @@
 <body>
 
     <div id="debug-panel" style="background: #e1dfdd; color: #323130; padding: 6px 12px; margin-bottom: 10px; border-radius: 4px; font-size: 12px; font-weight: bold;">
-        系统状态: 正在加载周次对照表...
+        系统状态: 正在加载数据...
     </div>
 
     <div id="aice-timetable-root" style="background-color: #ffffff; color: #333333; border: 1px solid #e1dfdd; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); max-width: 100%; margin: 0 auto; overflow: hidden;">
@@ -26,7 +26,7 @@
             </div>
             <div id="aice-date-title" style="font-weight: bold; font-size: 14px; color: #201f1e; text-align: center; flex-grow: 1;">Loading...</div>
             <div id="aice-week-badge" style="font-size: 12px; font-weight: bold; color: #10324a; background: #e1dfdd; padding: 4px 10px; border-radius: 4px;">
-                Week: --
+                --
             </div>
         </div>
 
@@ -46,7 +46,7 @@
         let weekPatternData = [];
         let rawTimetableData = [];
         let includeWeekends = false;
-        let baseDate = new Date(); // 默认今天
+        let baseDate = new Date();
 
         function showDebug(msg) {
             const panel = document.getElementById('debug-panel');
@@ -56,29 +56,18 @@
 
         async function initAiceApp() {
             try {
-                // 1. 同时加载两个 CSV 文件
                 const [patternRes, timetableRes] = await Promise.all([
                     fetch('Week-Pattern-AY2627.csv'),
                     fetch('AICE-Timetable-AY2627.csv')
                 ]);
 
-                if (patternRes.ok) {
-                    const text = await patternRes.text();
-                    weekPatternData = parseCSV(text);
-                } else {
-                    showDebug("错误: Week-Pattern-AY2627.csv 加载失败");
-                    return;
-                }
+                if (patternRes.ok) weekPatternData = parseCSV(await patternRes.text());
+                else { showDebug("错误: Week-Pattern-AY2627.csv 加载失败"); return; }
 
-                if (timetableRes.ok) {
-                    const text = await timetableRes.text();
-                    rawTimetableData = parseCSV(text);
-                } else {
-                    showDebug("错误: AICE-Timetable-AY2627.csv 加载失败");
-                    return;
-                }
+                if (timetableRes.ok) rawTimetableData = parseCSV(await timetableRes.text());
+                else { showDebug("错误: AICE-Timetable-AY2627.csv 加载失败"); return; }
 
-                showDebug(`数据加载成功！对照表: ${weekPatternData.length} 行, 课表: ${rawTimetableData.length} 行。`);
+                showDebug(`加载成功！对照表: ${weekPatternData.length} 行, 课表: ${rawTimetableData.length} 行。`);
             } catch (e) {
                 showDebug("错误: " + e.message);
                 return;
@@ -100,7 +89,6 @@
             timeAxisEl.innerHTML = axisHtml;
         }
 
-        // 把 "DD/MM/YYYY" 转成 Date 对象
         function parseUKDate(dateStr) {
             if (!dateStr) return null;
             const parts = dateStr.trim().split('/');
@@ -108,21 +96,29 @@
             return new Date(parts[2], parts[1] - 1, parts[0]);
         }
 
-        // 根据当前选中的日期，在 Week-Pattern 中查找对应的周信息
         function getCurrentWeekInfo(targetDate) {
             for (let row of weekPatternData) {
                 const start = parseUKDate(row['Week Start Date']);
                 const end = parseUKDate(row['Week End Date']);
                 if (start && end) {
-                    // 将时间归零比较
                     start.setHours(0,0,0,0);
                     end.setHours(23,59,59,999);
                     targetDate.setHours(12,0,0,0);
 
                     if (targetDate >= start && targetDate <= end) {
+                        // 标准化 Semester 名称：如 "Semester 1" 转为 "S1", "Semester 2" 转为 "S2" 等
+                        let rawSem = row['Semester'] ? row['Semester'].trim() : '';
+                        let semCode = rawSem;
+                        if (rawSem.toLowerCase().includes('semester 1') || rawSem === '1') semCode = 'S1';
+                        else if (rawSem.toLowerCase().includes('semester 2') || rawSem === '2') semCode = 'S2';
+                        else if (rawSem.match(/semester\s+(\d+)/i)) {
+                            semCode = 'S' + rawSem.match(/semester\s+(\d+)/i)[1];
+                        }
+
                         return {
-                            weekLabel: row['Week Label'] ? row['Week Label'].trim() : '', // 如 SW02, HW01 等
-                            semester: row['Semester'] ? row['Semester'].trim() : '',
+                            weekLabel: row['Week Label'] ? row['Week Label'].trim() : '', // SW01, SW02...
+                            semester: semCode,
+                            rawSemester: rawSem,
                             weekType: row['Week Type'] ? row['Week Type'].trim() : '',
                             startDate: start,
                             endDate: end
@@ -143,18 +139,17 @@
             headerRow.style.gridTemplateColumns = gridTemplate;
             gridBody.style.gridTemplateColumns = gridTemplate;
 
-            // 获取当前周的周一
             const startOfWeek = new Date(baseDate);
             const dayOfWeek = startOfWeek.getDay();
             const diffToMon = startOfWeek.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1);
             startOfWeek.setDate(diffToMon);
             startOfWeek.setHours(0,0,0,0);
 
-            // 通过 Week-Pattern 查找精准周标签
             const weekInfo = getCurrentWeekInfo(startOfWeek);
-            const weekKey = weekInfo ? weekInfo.weekLabel : ""; // 例如 "SW02"
+            const weekKey = weekInfo ? weekInfo.weekLabel : ""; // 例如 SW01, SW02
+            const currentSemester = weekInfo ? weekInfo.semester : ""; // 例如 S1, S2
 
-            document.getElementById('aice-week-badge').innerText = weekInfo ? `${weekInfo.semester} - ${weekKey} (${weekInfo.weekType})` : "假期/不在范围内";
+            document.getElementById('aice-week-badge').innerText = weekInfo ? `${weekInfo.rawSemester} - ${weekKey} (${weekInfo.weekType})` : "假期 / 非教学周";
 
             let headerLabelHtml = weekKey ? `${weekKey}` : "--";
             let headerHtml = `<div style="padding: 8px; text-align: center; font-size: 11px; font-weight: bold; color: #a19f9d; border-right: 1px solid #e1dfdd; display: flex; align-items: center; justify-content: center;">${headerLabelHtml}</div>`;
@@ -176,10 +171,15 @@
             const colors = ["#c3d66b", "#9e6b9e", "#90baf0", "#f0baf0", "#f0d090", "#ffb3ba", "#ffdfba", "#ffffba"];
             let renderCount = 0;
 
-            if (weekKey && rawTimetableData.length > 0) {
+            if (weekKey && currentSemester && rawTimetableData.length > 0) {
                 rawTimetableData.forEach((row) => {
+                    // 1. 学期必须严格匹配（S1 的课程只在 S1 显示，S2 的课程只在 S2 显示）
+                    const rowSem = row['Semester'] ? row['Semester'].trim().toUpperCase() : "";
+                    if (rowSem !== currentSemester.toUpperCase()) return;
+
+                    // 2. 检查对应周列是否有课 ("1")
                     const val = row[weekKey] !== undefined ? String(row[weekKey]).trim() : "0";
-                    if (val !== "1") return; // 只有标记为 1 的才渲染
+                    if (val !== "1") return;
 
                     const dayStr = row['Day of Week'] ? row['Day of Week'].trim().toLowerCase() : '';
                     const dayMap = { 
@@ -203,7 +203,6 @@
 
                     const moduleCode = row['Module'] || '';
                     const moduleName = row['Name'] || '';
-                    const sem = row['Semester'] || '';
                     const cardColor = colors[renderCount % colors.length];
 
                     const card = document.createElement('div');
@@ -211,7 +210,7 @@
 
                     card.innerHTML = `
                         <div style="position: relative; z-index: 2;">
-                            <div style="font-size: 11px; font-weight: bold; line-height: 1.2;">[${sem}] ${moduleCode} - ${moduleName}</div>
+                            <div style="font-size: 11px; font-weight: bold; line-height: 1.2;">[${rowSem}] ${moduleCode} - ${moduleName}</div>
                             <div style="font-size: 10px; opacity: 0.9; margin-top: 2px;">${row['Programmes'] || ''}</div>
                         </div>
                     `;
@@ -224,7 +223,7 @@
             end.setDate(startOfWeek.getDate() + (totalDays - 1));
             document.getElementById('aice-date-title').innerText = `${startOfWeek.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – ${end.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`;
             
-            showDebug(`状态正常 | 当前周: ${weekKey || '无'} | 成功渲染 ${renderCount} 节课`);
+            showDebug(`学期: ${currentSemester || '无'} | 周次: ${weekKey || '无'} | 成功渲染 ${renderCount} 节课`);
         }
 
         function parseCSV(text) {
