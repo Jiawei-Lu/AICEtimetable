@@ -1,300 +1,264 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AICE Timetable AY26/27</title>
-    <style>
-        body { margin: 0; padding: 15px; background-color: #f3f2f1; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AICE Timetable AY26/27</title>
+<style>
+:root{--navy:#10324a;--plum:#8b3f73;--line:#e3e3e3;--dot:#f0f0f0;--today:#faf7e0;--ink:#2b2f33;--mute:#6b7278}
+*{box-sizing:border-box}
+body{margin:0;padding:16px;background:#ccc;font-family:Verdana,"Segoe UI",Tahoma,sans-serif;color:var(--ink)}
+#app{max-width:1400px;margin:0 auto;background:#fff;padding:16px;border-radius:2px}
+.bar{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px;margin-bottom:14px}
+.grp{display:flex;gap:6px;align-items:center}
+button{font:inherit;cursor:pointer;border:0;background:var(--navy);color:#fff;padding:9px 14px;border-radius:4px;font-size:14px}
+button:focus-visible{outline:2px solid var(--plum);outline-offset:2px}
+button.gray{background:#64798a}
+.seg{display:grid;grid-template-columns:1fr 1fr 1fr;background:var(--navy);border-radius:5px;overflow:hidden}
+.seg.two{grid-template-columns:1fr 1fr}
+.seg button{border-radius:0;background:transparent;text-decoration:underline;text-underline-offset:3px;padding:10px 14px}
+.seg button.on{background:var(--plum)}
+.stack{display:flex;flex-direction:column;background:var(--navy);border-radius:5px;overflow:hidden}
+h1{margin:0;font-weight:400;font-size:clamp(20px,3vw,34px);letter-spacing:.04em;flex:1;text-align:center;color:#3a3f44}
+#status{font-size:12px;color:var(--mute);margin:0 0 8px;min-height:16px}
+.sc{border:1px solid var(--line);max-height:640px;overflow:auto}
+.g{display:grid;min-width:760px}
+.hd{position:sticky;top:0;z-index:5;background:#fff;border-bottom:1px solid var(--line);border-right:1px solid var(--line);padding:9px 4px;text-align:center;font-size:15px}
+.hd.w{font-size:14px;color:var(--mute)}
+.hd .b{display:block;font-size:11px;color:var(--plum);margin-top:2px}
+.ax div{height:44px;text-align:right;padding:4px 8px 0 0;font-size:15px;color:#555;border-bottom:1px dotted var(--dot)}
+.ax div.h{border-bottom:1px solid var(--line)}
+.col{position:relative;border-right:1px solid var(--line);background-image:repeating-linear-gradient(0deg,transparent 0,transparent 43px,var(--line) 43px,var(--line) 44px)}
+.col.today,.hd.today{background-color:var(--today)}
+.ev{position:absolute;padding:6px 10px;border:1px solid rgba(0,0,0,.18);border-radius:3px;font-size:13.5px;line-height:1.25;overflow:hidden;cursor:pointer;text-align:left;color:#1d1d1d;font-family:inherit}
+.ev:hover{filter:brightness(.96)}
+.ev.C{background:#d3dd6a}.ev.P{background:#b878b0;color:#fff;border-color:#9c5a95}.ev.O{background:#b1d6f0}
+.ev i,.info{position:absolute;right:6px;bottom:6px;width:18px;height:18px;border-radius:50%;background:#6c8fc4;color:#fff;font:700 12px/18px Georgia,serif;text-align:center;font-style:normal;border:1px solid #fff}
+.ev small{display:block;opacity:.9}
+.mg{display:grid;border:1px solid var(--line);border-right:0;border-bottom:0}
+.mh{padding:8px;text-align:center;border-right:1px solid var(--line);border-bottom:1px solid var(--line);background:#fafafa;font-size:14px}
+.mc{min-height:96px;padding:4px;border-right:1px solid var(--line);border-bottom:1px solid var(--line);font-size:12px}
+.mc.out{background:#f7f7f7;color:#aaa}.mc.today{background:var(--today)}
+.mc b{display:block;margin-bottom:3px;font-weight:600}
+.chip{display:block;width:100%;text-align:left;margin-top:2px;padding:2px 5px;border-radius:3px;font-size:11px;color:#1d1d1d;border:0}
+.chip.C{background:#d3dd6a}.chip.P{background:#b878b0;color:#fff}.chip.O{background:#b1d6f0}
+#ov{position:fixed;inset:0;background:rgba(0,0,0,.4);display:none;align-items:center;justify-content:center;padding:16px;z-index:50}
+#ov.show{display:flex}
+#dlg{background:#fff;border-radius:6px;max-width:460px;width:100%;padding:20px;max-height:90vh;overflow:auto}
+#dlg h2{margin:0 0 10px;font-size:17px}
+#dlg dl{margin:0;display:grid;grid-template-columns:130px 1fr;gap:6px 10px;font-size:13px}
+#dlg dt{color:var(--mute)}#dlg dd{margin:0}
+@media(max-width:700px){.stack .seg button{padding:8px 10px}}
+</style>
 </head>
 <body>
-
-    <div id="debug-panel" style="background: #e1dfdd; color: #323130; padding: 6px 12px; margin-bottom: 10px; border-radius: 4px; font-size: 12px; font-weight: bold;">
-        系统状态: 正在加载数据...
+<div id="app">
+  <div class="bar">
+    <div class="grp">
+      <div class="seg two"><button id="prev" aria-label="Previous">&lsaquo;</button><button id="next" aria-label="Next">&rsaquo;</button></div>
+      <button id="today" class="gray"><u>t</u>oday</button>
+      <button id="wk">Show Weekends</button>
     </div>
-
-    <div id="aice-timetable-root" style="background-color: #ffffff; color: #333333; border: 1px solid #e1dfdd; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); max-width: 100%; margin: 0 auto; overflow: hidden;">
-        <div style="background-color: #f3f2f1; padding: 10px 15px; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; border-bottom: 1px solid #e1dfdd; gap: 10px;">
-            <div style="display: flex; align-items: center; gap: 6px;">
-                <div style="display: inline-flex; border-radius: 4px; overflow: hidden; border: 1px solid #8a8886;">
-                    <button type="button" id="aice-prev-btn" style="background: #10324a; color: white; border: none; padding: 4px 10px; cursor: pointer; font-size: 12px;">&lt;</button>
-                    <button type="button" id="aice-next-btn" style="background: #10324a; color: white; border: none; padding: 4px 10px; cursor: pointer; font-size: 12px; border-left: 1px solid #fff;">&gt;</button>
-                </div>
-                <button type="button" id="aice-today-btn" style="background: #10324a; color: white; border: none; padding: 5px 10px; cursor: pointer; border-radius: 4px; font-size: 12px;">today</button>
-                <button type="button" id="aice-weekend-btn" style="background: #10324a; color: white; border: none; padding: 5px 10px; cursor: pointer; border-radius: 4px; font-size: 12px;">Show Weekends</button>
-            </div>
-            <div id="aice-date-title" style="font-weight: bold; font-size: 14px; color: #201f1e; text-align: center; flex-grow: 1;">Loading...</div>
-            <div id="aice-week-badge" style="font-size: 12px; font-weight: bold; color: #10324a; background: #e1dfdd; padding: 4px 10px; border-radius: 4px;">
-                --
-            </div>
-        </div>
-
-        <div style="max-height: 650px; overflow-y: auto; overflow-x: auto; position: relative;">
-            <div style="min-width: 850px; display: flex; flex-direction: column;">
-                <div id="aice-header-row" style="display: grid; background-color: #faf9f8; border-bottom: 1px solid #e1dfdd; position: sticky; top: 0; z-index: 20;"></div>
-                <div id="aice-grid-body" style="display: grid; position: relative;">
-                    <div id="aice-time-axis" style="background-color: #faf9f8; border-right: 1px solid #e1dfdd; width: 60px; flex-shrink: 0;"></div>
-                    <div id="aice-days-wrapper" style="display: contents;"></div>
-                </div>
-            </div>
-        </div>
+    <h1 id="title">Loading…</h1>
+    <div class="stack">
+      <div class="seg two"><button data-sem="S1">semester <u>1</u></button><button data-sem="S2">semester <u>2</u></button></div>
+      <div class="seg"><button data-view="month"><u>m</u>onth</button><button data-view="week"><u>w</u>eek</button><button data-view="day"><u>d</u>ay</button></div>
     </div>
+  </div>
+  <p id="status"></p>
+  <div id="main"></div>
+</div>
+<div id="ov"><div id="dlg" role="dialog" aria-modal="true"></div></div>
 
-    <script>
-    (function() {
-        let weekPatternData = [];
-        let rawTimetableData = [];
-        let includeWeekends = false;
-        let baseDate = new Date();
+<script>
+(() => {
+const START = 8, END = 21, HPX = 44;
+const DAYS = {mon:1,tue:2,wed:3,thu:4,fri:5,sat:6,sun:7};
+const DN = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+const MN = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const $ = id => document.getElementById(id);
+const S = {pat:[], tt:[], cfg:{defaultSemester:'S1'}, view:'week', weekends:false, date:new Date()};
 
-        function showDebug(msg) {
-            const panel = document.getElementById('debug-panel');
-            if(panel) panel.innerText = msg;
-            console.log("DEBUG:", msg);
-        }
+/* ---------- data ---------- */
+function parseCSV(t){
+  const out=[]; let row=[], f='', q=false; t=t.replace(/^\uFEFF/,'');
+  for(let i=0;i<t.length;i++){
+    const c=t[i];
+    if(q){ if(c==='"'){ if(t[i+1]==='"'){f+='"';i++} else q=false } else f+=c }
+    else if(c==='"') q=true;
+    else if(c===','){row.push(f);f=''}
+    else if(c==='\n'||c==='\r'){ if(c==='\r'&&t[i+1]==='\n')i++; row.push(f); out.push(row); row=[]; f='' }
+    else f+=c;
+  }
+  if(f||row.length){row.push(f);out.push(row)}
+  return out.filter(r=>r.some(v=>v.trim()));
+}
+function toObjs(rows, suffixDupes){
+  const seen={};
+  const head=rows[0].map(h=>{
+    h=h.trim();
+    if(suffixDupes && /^(SW|HW|EW|CW)\d+$/.test(h)){ seen[h]=(seen[h]||0)+1; return h+(seen[h]===1?'_S1':'_S2') }
+    return h;
+  });
+  return rows.slice(1).map(r=>{const o={}; head.forEach((h,i)=>o[h]=(r[i]||'').trim()); return o});
+}
+function ukDate(s){const p=(s||'').split('/'); return p.length===3?new Date(+p[2],+p[1]-1,+p[0]):null}
 
-        async function initAiceApp() {
-            try {
-                const [patternRes, timetableRes] = await Promise.all([
-                    fetch('Week-Pattern-AY2627.csv'),
-                    fetch('AICE-Timetable-AY2627.csv')
-                ]);
+/* Semester column in Week-Pattern: "Semester 1", "Semester 2", then "Semester 3…19" (autofill
+   artefact). Anything numbered 2 or above is the second-semester calendar. */
+function loadPattern(text){
+  S.pat = toObjs(parseCSV(text)).map(o=>{
+    const n = +((o['Semester'].match(/\d+/)||[0])[0]);
+    const start=ukDate(o['Week Start Date']), end=ukDate(o['Week End Date']);
+    if(!start||!end||!n) return null;
+    end.setHours(23,59,59,999);
+    return {label:o['Week Label'].trim(), sem:n===1?'S1':'S2', type:o['Week Type'].trim(), start, end};
+  }).filter(Boolean);
+}
+function weekOf(d){ return S.pat.find(w=>d>=w.start && d<=w.end) || null }
+function mondayOf(d){ const x=new Date(d); x.setHours(0,0,0,0); x.setDate(x.getDate()-((x.getDay()+6)%7)); return x }
+const same=(a,b)=>a.toDateString()===b.toDateString();
+const addDays=(d,n)=>{const x=new Date(d); x.setDate(x.getDate()+n); return x};
+const ord=n=>n+(n%10===1&&n!==11?'st':n%10===2&&n!==12?'nd':n%10===3&&n!==13?'rd':'th');
+const wLabel=l=>!l?'--':(l[0]==='S'?'W'+ +l.slice(2):l[0]+'W'+ +l.slice(2));
+const typeCls=t=>/practical/i.test(t)?'P':/computer/i.test(t)?'C':'O';
+const typeTag=t=>/practical/i.test(t)?(/computer/i.test(t)?'P+C':'P'):/computer/i.test(t)?'C':'';
+const hm=h=>{const H=Math.floor(h),M=Math.round((h-H)*60);return String(H).padStart(2,'0')+':'+String(M).padStart(2,'0')};
 
-                if (patternRes.ok) weekPatternData = parseCSVPattern(await patternRes.text());
-                else { showDebug("错误: Week-Pattern-AY2627.csv 加载失败"); return; }
+/* events for one calendar date */
+function eventsFor(d){
+  const w=weekOf(d); if(!w) return {w:null,ev:[]};
+  const dow=(d.getDay()+6)%7+1, key=w.label+'_'+w.sem, map={};
+  S.tt.forEach(r=>{
+    if(r['Semester'].toUpperCase()!==w.sem || r[key]!=='1') return;
+    if(DAYS[r['Day of Week'].slice(0,3).toLowerCase()]!==dow) return;
+    const s=parseFloat(r['Start Time']), e=parseFloat(r['End Time']);
+    if(isNaN(s)||isNaN(e)) return;
+    const k=[s,e,r['Name'],r['Lab Type']].join('|');
+    (map[k]=map[k]||{s,e,name:r['Name'],type:r['Lab Type'],rows:[]}).rows.push(r);
+  });
+  const ev=Object.values(map).map(g=>{
+    const mods=g.rows.map(r=>r['Module']);
+    g.code=mods.map((m,i)=>i&&m.replace(/^[A-Z]+/,'')!==m&&mods[0].slice(0,4)===m.slice(0,4)?m.replace(/^[A-Z]+/,''):m).join('/');
+    g.name=mods.length>1&&g.rows.length>1?'':g.name; g.w=w; g.date=d; return g;
+  });
+  layout(ev);
+  return {w,ev};
+}
+function layout(ev){
+  ev.sort((a,b)=>a.s-b.s||a.e-b.e);
+  let cur=null,mx=-1;
+  ev.forEach(e=>{
+    if(!cur||e.s>=mx){cur={lanes:[]};mx=-1}
+    let l=cur.lanes.findIndex(x=>x<=e.s); if(l<0){l=cur.lanes.length;cur.lanes.push(0)}
+    cur.lanes[l]=e.e; e.lane=l; e.cl=cur; mx=Math.max(mx,e.e);
+  });
+}
 
-                if (timetableRes.ok) rawTimetableData = parseCSVTimetable(await timetableRes.text());
-                else { showDebug("错误: AICE-Timetable-AY2627.csv 加载失败"); return; }
+/* ---------- rendering ---------- */
+function evHTML(e,idx,dayKey){
+  const n=e.cl.lanes.length, wd=100/n;
+  const t=typeTag(e.type), head=e.code+(t?' '+t:'')+(e.name?' - '+e.name:'');
+  const prog=[...new Set(e.rows.map(r=>r['Programmes']))].join(', ');
+  return `<button class="ev ${typeCls(e.type)}" data-k="${dayKey}:${idx}" style="top:${(e.s-START)*HPX}px;height:${(e.e-e.s)*HPX-1}px;left:calc(${e.lane*wd}% + 3px);width:calc(${wd}% - 6px)">${head}<small>${prog}</small><i>i</i></button>`;
+}
+const store={};
+function dayCol(d,today){
+  const {ev}=eventsFor(d), key=d.toISOString().slice(0,10); store[key]=ev;
+  return `<div class="col${same(d,today)?' today':''}" style="height:${(END-START)*HPX}px">${ev.map((e,i)=>evHTML(e,i,key)).join('')}</div>`;
+}
+function renderTime(days){
+  const today=new Date(), first=days[0], info=eventsFor(first).w||weekOf(mondayOf(first));
+  const cols=`56px repeat(${days.length},minmax(120px,1fr))`;
+  let h=`<div class="g" style="grid-template-columns:${cols}"><div class="hd w">${wLabel(info&&info.label)}</div>`;
+  days.forEach(d=>{
+    const w=weekOf(d), bad=w&&w.type!=='Teaching'?`<span class="b">${w.type}</span>`:(!w?'<span class="b">no term</span>':'');
+    h+=`<div class="hd${same(d,today)?' today':''}">${DN[(d.getDay()+6)%7]} ${ord(d.getDate())} ${MN[d.getMonth()]}${bad}</div>`;
+  });
+  let ax=''; for(let x=START;x<END;x++) ax+=`<div class="h">${x<12?x+'am':x===12?'12pm':(x-12)+'pm'}</div>`;
+  h+=`<div class="ax">${ax}</div>`+days.map(d=>dayCol(d,today)).join('')+'</div>';
+  $('main').innerHTML=`<div class="sc" id="sc">${h}</div>`;
+  const sc=$('sc'); sc.scrollTop=(10-START)*HPX-20;
+}
+function renderMonth(){
+  const today=new Date(), y=S.date.getFullYear(), m=S.date.getMonth(), n=S.weekends?7:5;
+  let d=mondayOf(new Date(y,m,1)), h=`<div class="mg" style="grid-template-columns:repeat(${n},1fr)">`;
+  DN.slice(0,n).forEach(x=>h+=`<div class="mh">${x}</div>`);
+  for(;d<=new Date(y,m+1,0)||(d.getDay()!==1);d=addDays(d,1)){
+    const dow=(d.getDay()+6)%7; if(dow>=n) continue;
+    const {ev}=eventsFor(d), key=d.toISOString().slice(0,10); store[key]=ev;
+    h+=`<div class="mc${d.getMonth()!==m?' out':''}${same(d,today)?' today':''}"><b>${d.getDate()}</b>${ev.map((e,i)=>`<button class="chip ${typeCls(e.type)}" data-k="${key}:${i}">${e.code}</button>`).join('')}</div>`;
+  }
+  $('main').innerHTML=h+'</div>';
+}
+function render(){
+  const v=S.view, d=S.date;
+  document.querySelectorAll('[data-view]').forEach(b=>b.classList.toggle('on',b.dataset.view===v));
+  const w=weekOf(v==='month'?d:v==='day'?d:mondayOf(d));
+  document.querySelectorAll('[data-sem]').forEach(b=>b.classList.toggle('on',!!w&&b.dataset.sem===w.sem));
+  $('wk').style.display=v==='day'?'none':'';
+  if(v==='month'){
+    renderMonth(); $('title').textContent=['January','February','March','April','May','June','July','August','September','October','November','December'][d.getMonth()]+' '+d.getFullYear();
+  } else if(v==='day'){
+    renderTime([d]); $('title').textContent=`${DN[(d.getDay()+6)%7]} ${d.getDate()} ${MN[d.getMonth()]} ${d.getFullYear()}`;
+  } else {
+    const mon=mondayOf(d), n=S.weekends?7:5, days=Array.from({length:n},(_,i)=>addDays(mon,i)), e=days[n-1];
+    renderTime(days);
+    $('title').textContent=`${MN[mon.getMonth()]} ${mon.getDate()} – ${e.getMonth()!==mon.getMonth()?MN[e.getMonth()]+' ':''}${e.getDate()}, ${e.getFullYear()}`;
+  }
+  const wi=weekOf(v==='week'?mondayOf(d):d);
+  $('status').textContent=wi?`${wi.sem==='S1'?'Semester 1':'Semester 2'} · ${wi.label} · ${wi.type}`:'Outside the term calendar';
+}
 
-                showDebug(`加载成功！对照表: ${weekPatternData.length} 行, 课表: ${rawTimetableData.length} 行。`);
-            } catch (e) {
-                showDebug("错误: " + e.message);
-                return;
-            }
+/* ---------- details dialog ---------- */
+function showDetail(k){
+  const [dk,i]=k.split(':'), e=store[dk][+i]; if(!e) return;
+  const rows=e.rows.map(r=>`<dt>Module</dt><dd>${r['Module']} – ${r['Name']}</dd><dt>Programmes</dt><dd>${r['Programmes']||'–'}</dd><dt>Students</dt><dd>${r['Total Student Number']||'–'}</dd><dt>Preparation</dt><dd>${r['Preparation Requirement']||'–'}</dd><dt>Requirements</dt><dd>${r['Requirements']||'–'}</dd><dt>Status</dt><dd>${r['Requirement Status']||'–'}</dd>`).join('');
+  $('dlg').innerHTML=`<h2>${e.code}${e.name?' – '+e.name:''}</h2><dl><dt>Date</dt><dd>${DN[(e.date.getDay()+6)%7]} ${ord(e.date.getDate())} ${MN[e.date.getMonth()]} ${e.date.getFullYear()}</dd><dt>Time</dt><dd>${hm(e.s)} – ${hm(e.e)}</dd><dt>Week</dt><dd>${e.w.label} (${e.w.sem})</dd><dt>Lab type</dt><dd>${e.type||'–'}</dd>${rows}</dl><p style="text-align:right;margin:14px 0 0"><button id="cls">Close</button></p>`;
+  $('ov').classList.add('show'); $('cls').focus();
+}
+const closeDlg=()=>$('ov').classList.remove('show');
 
-            setupTimeAxis();
-            setupEventListeners();
-            refresh();
-        }
+/* ---------- controls ---------- */
+function step(dir){
+  const d=new Date(S.date);
+  if(S.view==='month') d.setMonth(d.getMonth()+dir,1);
+  else if(S.view==='day'){ d.setDate(d.getDate()+dir); while((d.getDay()===0||d.getDay()===6)&&!S.weekends) d.setDate(d.getDate()+dir) }
+  else d.setDate(d.getDate()+7*dir);
+  S.date=d; render();
+}
+function jumpSem(sem){
+  const w=S.pat.find(x=>x.sem===sem&&x.type==='Teaching'); if(w){S.date=new Date(w.start); render()}
+}
+document.addEventListener('click',ev=>{
+  const t=ev.target.closest('button, #ov'); if(!t) return;
+  if(t.id==='ov'||t.id==='cls') return closeDlg();
+  if(t.dataset.k) return showDetail(t.dataset.k);
+  if(t.dataset.view){S.view=t.dataset.view; if(S.view==='day'&&!weekOf(S.date)) {} render(); return}
+  if(t.dataset.sem) return jumpSem(t.dataset.sem);
+  if(t.id==='prev') step(-1); else if(t.id==='next') step(1);
+  else if(t.id==='today'){S.date=new Date(); render()}
+  else if(t.id==='wk'){S.weekends=!S.weekends; t.textContent=S.weekends?'Hide Weekends':'Show Weekends'; render()}
+});
+document.addEventListener('keydown',e=>{ if(e.key==='Escape') closeDlg() });
 
-        function setupTimeAxis() {
-            const timeAxisEl = document.getElementById('aice-time-axis');
-            if (!timeAxisEl) return;
-            let axisHtml = '';
-            for (let h = 8; h < 19; h++) {
-                let timeStr = (h < 10 ? '0' + h : h) + ':00';
-                axisHtml += `<div style="height: 60px; border-bottom: 1px solid #e1dfdd; border-right: 1px solid #e1dfdd; text-align: right; padding-right: 8px; font-size: 11px; color: #605e5c; line-height: 60px;">${timeStr}</div>`;
-            }
-            timeAxisEl.innerHTML = axisHtml;
-        }
-
-        function parseUKDate(dateStr) {
-            if (!dateStr) return null;
-            const parts = dateStr.trim().split('/');
-            if (parts.length !== 3) return null;
-            return new Date(parts[2], parts[1] - 1, parts[0]);
-        }
-
-        // 专门解析 Week Pattern，只提取真正的 S1 和 S2 教学周
-        function parseCSVPattern(text) {
-            const lines = text.split(/\r\n|\n/);
-            if(lines.length === 0) return [];
-            const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g, '').replace(/^\uFEFF/, ''));
-            const result = [];
-            for (let i = 1; i < lines.length; i++) {
-                if (!lines[i].trim()) continue;
-                const currentline = lines[i].split(',');
-                const obj = {};
-                for (let j = 0; j < headers.length; j++) {
-                    let val = currentline[j] ? currentline[j].trim() : '';
-                    obj[headers[j]] = val.replace(/^"|"$/g, '').replace(/\r$/, '');
-                }
-                
-                let rawSem = obj['Semester'] || '';
-                let semCode = '';
-                if (rawSem.toLowerCase() === 'semester 1') semCode = 'S1';
-                else if (rawSem.toLowerCase() === 'semester 2') semCode = 'S2';
-                else continue; // 过滤掉后面的 Semester 3, 4 等非 S1/S2 的杂项
-
-                obj['NormalizedSemester'] = semCode;
-                result.push(obj);
-            }
-            return result;
-        }
-
-        // 专门解析课表 CSV，处理重复的周列名（前一半归S1，后一半归S2）
-        function parseCSVTimetable(text) {
-            const lines = text.split(/\r\n|\n/);
-            if(lines.length === 0) return [];
-            const rawHeaders = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g, '').replace(/^\uFEFF/, ''));
-            
-            // 给重复的列名加上后缀以区分 S1 和 S2
-            const headers = [];
-            let seenCount = {};
-            rawHeaders.forEach(h => {
-                if (h.startsWith('SW') || h.startsWith('HW') || h.startsWith('EW') || h.startsWith('CW')) {
-                    if (!seenCount[h]) seenCount[h] = 1;
-                    else seenCount[h]++;
-                    
-                    if (seenCount[h] === 1) headers.push(h + '_S1');
-                    else headers.push(h + '_S2');
-                } else {
-                    headers.push(h);
-                }
-            });
-
-            const result = [];
-            for (let i = 1; i < lines.length; i++) {
-                if (!lines[i].trim()) continue;
-                const currentline = lines[i].split(',');
-                const obj = {};
-                for (let j = 0; j < headers.length; j++) {
-                    let val = currentline[j] ? currentline[j].trim() : '';
-                    obj[headers[j]] = val.replace(/^"|"$/g, '').replace(/\r$/, '');
-                }
-                result.push(obj);
-            }
-            return result;
-        }
-
-        function getCurrentWeekInfo(targetDate) {
-            for (let row of weekPatternData) {
-                const start = parseUKDate(row['Week Start Date']);
-                const end = parseUKDate(row['Week End Date']);
-                if (start && end) {
-                    start.setHours(0,0,0,0);
-                    end.setHours(23,59,59,999);
-                    targetDate.setHours(12,0,0,0);
-
-                    if (targetDate >= start && targetDate <= end) {
-                        return {
-                            weekLabel: row['Week Label'] ? row['Week Label'].trim() : '', 
-                            semester: row['NormalizedSemester'], // S1 或 S2
-                            rawSemester: row['Semester'],
-                            weekType: row['Week Type'] ? row['Week Type'].trim() : '',
-                            startDate: start,
-                            endDate: end
-                        };
-                    }
-                }
-            }
-            return null;
-        }
-
-        function refresh() {
-            const totalDays = includeWeekends ? 7 : 5;
-            const headerRow = document.getElementById('aice-header-row');
-            const gridBody = document.getElementById('aice-grid-body');
-            if (!headerRow || !gridBody) return;
-            
-            const gridTemplate = `60px repeat(${totalDays}, minmax(140px, 1fr))`;
-            headerRow.style.gridTemplateColumns = gridTemplate;
-            gridBody.style.gridTemplateColumns = gridTemplate;
-
-            const startOfWeek = new Date(baseDate);
-            const dayOfWeek = startOfWeek.getDay();
-            const diffToMon = startOfWeek.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1);
-            startOfWeek.setDate(diffToMon);
-            startOfWeek.setHours(0,0,0,0);
-
-            const weekInfo = getCurrentWeekInfo(startOfWeek);
-            const weekKey = weekInfo ? weekInfo.weekLabel : ""; 
-            const currentSemester = weekInfo ? weekInfo.semester : ""; 
-
-            document.getElementById('aice-week-badge').innerText = weekInfo ? `${weekInfo.rawSemester} - ${weekKey} (${weekInfo.weekType})` : "假期 / 非教学周";
-
-            let headerLabelHtml = weekKey ? `${weekKey}` : "--";
-            let headerHtml = `<div style="padding: 8px; text-align: center; font-size: 11px; font-weight: bold; color: #a19f9d; border-right: 1px solid #e1dfdd; display: flex; align-items: center; justify-content: center;">${headerLabelHtml}</div>`;
-            const daysNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-            for (let i = 0; i < totalDays; i++) {
-                let curr = new Date(startOfWeek);
-                curr.setDate(startOfWeek.getDate() + i);
-                headerHtml += `<div style="padding: 8px; text-align: center; font-size: 12px; font-weight: 600; color: #323130; border-right: 1px solid #e1dfdd;">${daysNames[i]} ${curr.getDate()}th</div>`;
-            }
-            headerRow.innerHTML = headerHtml;
-
-            const wrapper = document.getElementById('aice-days-wrapper');
-            let colsHtml = '';
-            for (let i = 0; i < totalDays; i++) {
-                colsHtml += `<div class="aice-day-col" data-day-index="${i + 1}" style="position: relative; border-bottom: 1px solid #e1dfdd; border-right: 1px solid #e1dfdd; height: 660px; background-image: repeating-linear-gradient(0deg, transparent, transparent 59px, #f3f2f1 59px, #f3f2f1 60px);"></div>`;
-            }
-            wrapper.innerHTML = colsHtml;
-
-            const colors = ["#c3d66b", "#9e6b9e", "#90baf0", "#f0baf0", "#f0d090", "#ffb3ba", "#ffdfba", "#ffffba"];
-            let renderCount = 0;
-
-            if (weekKey && currentSemester && rawTimetableData.length > 0) {
-                rawTimetableData.forEach((row) => {
-                    const rowSem = row['Semester'] ? row['Semester'].trim().toUpperCase() : "";
-                    // 严格匹配学期
-                    if (rowSem !== currentSemester) return;
-
-                    // 根据当前学期拼接对应的列后缀（S1 用 _S1，S2 用 _S2）
-                    const lookupKey = weekKey + "_" + currentSemester;
-                    const val = row[lookupKey] !== undefined ? String(row[lookupKey]).trim() : "0";
-                    
-                    if (val !== "1") return; // 只有标记为 1 的才渲染
-
-                    const dayStr = row['Day of Week'] ? row['Day of Week'].trim().toLowerCase() : '';
-                    const dayMap = { 
-                        'monday': 1, 'mon': 1, 
-                        'tuesday': 2, 'tue': 2, 
-                        'wednesday': 3, 'wed': 3, 
-                        'thursday': 4, 'thu': 4, 
-                        'friday': 5, 'fri': 5, 
-                        'saturday': 6, 'sat': 6, 
-                        'sunday': 7, 'sun': 7 
-                    };
-                    const dIndex = dayMap[dayStr];
-                    if (!dIndex || dIndex > totalDays) return;
-
-                    const targetCol = wrapper.querySelector(`.aice-day-col[data-day-index="${dIndex}"]`);
-                    if (!targetCol) return;
-
-                    const sh = Number(row['Start Time']);
-                    const eh = Number(row['End Time']);
-                    if (isNaN(sh) || isNaN(eh)) return;
-
-                    const moduleCode = row['Module'] || '';
-                    const moduleName = row['Name'] || '';
-                    const cardColor = colors[renderCount % colors.length];
-
-                    const card = document.createElement('div');
-                    card.style.cssText = `position: absolute; top: ${(sh - 8)*60}px; left: 4px; right: 4px; height: ${(eh - sh)*60}px; background-color: ${cardColor}; color: #1f1f1f; border-radius: 4px; padding: 6px 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); overflow: hidden; box-sizing: border-box; display: flex; flex-direction: column; justify-content: space-between;`;
-
-                    card.innerHTML = `
-                        <div style="position: relative; z-index: 2;">
-                            <div style="font-size: 11px; font-weight: bold; line-height: 1.2;">[${rowSem}] ${moduleCode} - ${moduleName}</div>
-                            <div style="font-size: 10px; opacity: 0.9; margin-top: 2px;">${row['Programmes'] || ''}</div>
-                        </div>
-                    `;
-                    targetCol.appendChild(card);
-                    renderCount++;
-                });
-            }
-
-            const end = new Date(startOfWeek);
-            end.setDate(startOfWeek.getDate() + (totalDays - 1));
-            document.getElementById('aice-date-title').innerText = `${startOfWeek.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – ${end.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`;
-            
-            showDebug(`学期: ${currentSemester} | 周次: ${weekKey} | 成功渲染 ${renderCount} 节课`);
-        }
-
-        function setupEventListeners() {
-            document.getElementById('aice-prev-btn').onclick = function() { baseDate.setDate(baseDate.getDate() - 7); refresh(); };
-            document.getElementById('aice-next-btn').onclick = function() { baseDate.setDate(baseDate.getDate() + 7); refresh(); };
-            document.getElementById('aice-today-btn').onclick = function() { baseDate = new Date(); refresh(); };
-            document.getElementById('aice-weekend-btn').onclick = function() {
-                includeWeekends = !includeWeekends;
-                this.innerText = includeWeekends ? "Hide Weekends" : "Show Weekends";
-                refresh();
-            };
-        }
-
-        if (document.readyState === "complete" || document.readyState === "interactive") { setTimeout(initAiceApp, 50); }
-        else { document.addEventListener("DOMContentLoaded", initAiceApp); }
-    })();
-    </script>
+/* ---------- start ---------- */
+async function init(){
+  try{
+    const get=async(u)=>{const r=await fetch(u); if(!r.ok) throw new Error(u+' ('+r.status+')'); return r.text()};
+    const [p,t,c]=await Promise.all([get('Week-Pattern-AY2627.csv'),get('AICE-Timetable-AY2627.csv'),get('config.json').catch(()=>'{}')]);
+    loadPattern(p); S.tt=toObjs(parseCSV(t),true); Object.assign(S.cfg,JSON.parse(c||'{}'));
+  }catch(err){
+    $('title').textContent='Could not load data';
+    $('status').textContent=err.message+' – open this page through a web server (e.g. python -m http.server), not by double-clicking the file.';
+    return;
+  }
+  if(!weekOf(new Date())){ const w=S.pat.find(x=>x.sem===S.cfg.defaultSemester&&x.type==='Teaching'); if(w) S.date=new Date(w.start) }
+  if(matchMedia('(max-width:700px)').matches) S.view='day';
+  render();
+}
+init();
+})();
+</script>
 </body>
 </html>
