@@ -1,272 +1,284 @@
-<div id="aice-timetable-root" style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #ffffff; color: #333333; border: 1px solid #e1dfdd; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); max-width: 100%; margin: 10px auto; overflow: hidden;">
-    
-    <!-- 顶部控制栏 -->
-    <div style="background-color: #f3f2f1; padding: 10px 15px; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; border-bottom: 1px solid #e1dfdd; gap: 10px;">
-        <div style="display: flex; align-items: center; gap: 6px;">
-            <div style="display: inline-flex; border-radius: 4px; overflow: hidden; border: 1px solid #8a8886;">
-                <button type="button" id="aice-prev-btn" style="background: #10324a; color: white; border: none; padding: 4px 10px; cursor: pointer; font-size: 12px;">&lt;</button>
-                <button type="button" id="aice-next-btn" style="background: #10324a; color: white; border: none; padding: 4px 10px; cursor: pointer; font-size: 12px; border-left: 1px solid #fff;">&gt;</button>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AICE Timetable AY26/27</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 15px;
+            background-color: #f3f2f1;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="aice-timetable-root" style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #ffffff; color: #333333; border: 1px solid #e1dfdd; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); max-width: 100%; margin: 0 auto; overflow: hidden;">
+        
+        <!-- 顶部控制栏 -->
+        <div style="background-color: #f3f2f1; padding: 10px 15px; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; border-bottom: 1px solid #e1dfdd; gap: 10px;">
+            <div style="display: flex; align-items: center; gap: 6px;">
+                <div style="display: inline-flex; border-radius: 4px; overflow: hidden; border: 1px solid #8a8886;">
+                    <button type="button" id="aice-prev-btn" style="background: #10324a; color: white; border: none; padding: 4px 10px; cursor: pointer; font-size: 12px;">&lt;</button>
+                    <button type="button" id="aice-next-btn" style="background: #10324a; color: white; border: none; padding: 4px 10px; cursor: pointer; font-size: 12px; border-left: 1px solid #fff;">&gt;</button>
+                </div>
+                <button type="button" id="aice-today-btn" style="background: #10324a; color: white; border: none; padding: 5px 10px; cursor: pointer; border-radius: 4px; font-size: 12px;">today</button>
+                <button type="button" id="aice-weekend-btn" style="background: #10324a; color: white; border: none; padding: 5px 10px; cursor: pointer; border-radius: 4px; font-size: 12px;">Show Weekends</button>
             </div>
-            <button type="button" id="aice-today-btn" style="background: #10324a; color: white; border: none; padding: 5px 10px; cursor: pointer; border-radius: 4px; font-size: 12px;">today</button>
-            <button type="button" id="aice-weekend-btn" style="background: #10324a; color: white; border: none; padding: 5px 10px; cursor: pointer; border-radius: 4px; font-size: 12px;">Show Weekends</button>
+
+            <div id="aice-date-title" style="font-weight: bold; font-size: 14px; color: #201f1e; text-align: center; flex-grow: 1;">
+                Loading Timetable...
+            </div>
+
+            <div style="display: flex; align-items: center; gap: 10px;">
+                <div style="background: #10324a; padding: 2px; border-radius: 4px; display: flex; color: white; font-size: 11px;">
+                    <span id="sem1-btn" style="padding: 3px 8px; background: rgba(255,255,255,0.2); border-radius: 2px; cursor: pointer;">semester S1</span>
+                    <span id="sem2-btn" style="padding: 3px 8px; cursor: pointer;">semester S2</span>
+                </div>
+            </div>
         </div>
 
-        <div id="aice-date-title" style="font-weight: bold; font-size: 14px; color: #201f1e; text-align: center; flex-grow: 1;">
-            Loading Timetable...
-        </div>
+        <!-- 日历滚动视窗 -->
+        <div style="max-height: 650px; overflow-y: auto; overflow-x: auto; position: relative;">
+            <div style="min-width: 850px;">
+                <!-- 表头：星期与日期 -->
+                <div id="aice-header-row" style="display: grid; background-color: #faf9f8; border-bottom: 1px solid #e1dfdd; position: sticky; top: 0; z-index: 20;"></div>
 
-        <div style="display: flex; align-items: center; gap: 10px;">
-            <div style="background: #10324a; padding: 2px; border-radius: 4px; display: flex; color: white; font-size: 11px;">
-                <span id="sem1-btn" style="padding: 3px 8px; background: rgba(255,255,255,0.2); border-radius: 2px; cursor: pointer;">semester S1</span>
-                <span id="sem2-btn" style="padding: 3px 8px; cursor: pointer;">semester S2</span>
+                <!-- 主体网格区：时间轴 + 日程列 -->
+                <div id="aice-grid-body" style="display: grid; position: relative;">
+                    <div id="aice-time-axis" style="background-color: #faf9f8; border-right: 1px solid #e1dfdd;"></div>
+                    <div id="aice-days-wrapper" style="display: contents;"></div>
+                </div>
             </div>
         </div>
     </div>
 
-    <!-- 日历滚动视窗 -->
-    <div style="max-height: 650px; overflow-y: auto; overflow-x: auto; position: relative;">
-        <div style="min-width: 850px;">
-            <!-- 表头：星期与日期 -->
-            <div id="aice-header-row" style="display: grid; background-color: #faf9f8; border-bottom: 1px solid #e1dfdd; position: sticky; top: 0; z-index: 20;"></div>
+    <script>
+    (function() {
+        let globalConfig = {
+            week1StartDate: "2026-09-14",
+            defaultSemester: "S1"
+        };
+        let rawCsvData = [];
+        let includeWeekends = false;
+        let baseDate = new Date(); // 初始化为当前真实系统日期
 
-            <!-- 主体网格区：时间轴 + 日程列 -->
-            <div id="aice-grid-body" style="display: grid; position: relative;">
-                <div id="aice-time-axis" style="background-color: #faf9f8; border-right: 1px solid #e1dfdd;"></div>
-                <div id="aice-days-wrapper" style="display: contents;"></div>
-            </div>
-        </div>
-    </div>
-</div>
-
-<script>
-(function() {
-    let globalConfig = {
-        week1StartDate: "2026-09-14",
-        defaultSemester: "S1"
-    };
-    let rawCsvData = [];
-    let includeWeekends = false;
-    let baseDate = new Date(); // 初始化为当前真实系统日期
-
-    async function initAiceApp() {
-        // 1. 尝试读取 config.json（带容错，失败不影响主程序）
-        try {
-            const configRes = await fetch('config.json');
-            if (configRes.ok) {
-                let userConfig = await configRes.json();
-                if (userConfig.week1StartDate) globalConfig.week1StartDate = userConfig.week1StartDate.trim();
-                if (userConfig.defaultSemester) globalConfig.defaultSemester = String(userConfig.defaultSemester).trim();
+        async function initAiceApp() {
+            try {
+                const configRes = await fetch('config.json');
+                if (configRes.ok) {
+                    let userConfig = await configRes.json();
+                    if (userConfig.week1StartDate) globalConfig.week1StartDate = userConfig.week1StartDate.trim();
+                    if (userConfig.defaultSemester) globalConfig.defaultSemester = String(userConfig.defaultSemester).trim();
+                }
+            } catch (e) {
+                console.log("使用内置默认配置");
             }
-        } catch (e) {
-            console.log("使用内置默认配置");
-        }
 
-        // 2. 加载 CSV 文件
-        try {
-            const csvRes = await fetch('AICE-Timetable-AY2627.csv');
-            if (csvRes.ok) {
-                const csvText = await csvRes.text();
-                rawCsvData = parseCSV(csvText);
-                console.log("CSV 加载成功，总行数:", rawCsvData.length);
-            } else {
-                console.error("CSV 加载失败");
+            try {
+                const csvRes = await fetch('AICE-Timetable-AY2627.csv');
+                if (csvRes.ok) {
+                    const csvText = await csvRes.text();
+                    rawCsvData = parseCSV(csvText);
+                    console.log("CSV 加载成功，总行数:", rawCsvData.length);
+                } else {
+                    console.error("CSV 加载失败");
+                }
+            } catch (e) {
+                console.error("加载 CSV 出错:", e);
             }
-        } catch (e) {
-            console.error("加载 CSV 出错:", e);
+
+            setupTimeAxis();
+            setupEventListeners();
+            refresh();
         }
 
-        setupTimeAxis();
-        setupEventListeners();
-        refresh();
-    }
-
-    function setupTimeAxis() {
-        const timeAxisEl = document.getElementById('aice-time-axis');
-        if (!timeAxisEl) return;
-        let axisHtml = '';
-        for (let h = 8; h < 19; h++) {
-            let timeStr = (h < 10 ? '0' + h : h) + ':00';
-            axisHtml += `<div style="height: 60px; border-bottom: 1px solid #e1dfdd; border-right: 1px solid #e1dfdd; text-align: right; padding-right: 8px; font-size: 11px; color: #605e5c; line-height: 60px;">${timeStr}</div>`;
-        }
-        timeAxisEl.innerHTML = axisHtml;
-    }
-
-    function refresh() {
-        const totalDays = includeWeekends ? 7 : 5;
-        const headerRow = document.getElementById('aice-header-row');
-        const gridBody = document.getElementById('aice-grid-body');
-        if (!headerRow || !gridBody) return;
-        
-        const gridTemplate = `60px repeat(${totalDays}, minmax(140px, 1fr))`;
-        headerRow.style.gridTemplateColumns = gridTemplate;
-        gridBody.style.gridTemplateColumns = gridTemplate;
-
-        const startOfWeek = new Date(baseDate);
-        if (isNaN(startOfWeek.getTime())) {
-            baseDate = new Date();
-            return;
-        }
-        const dayOfWeek = startOfWeek.getDay();
-        const diffToMon = startOfWeek.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1);
-        startOfWeek.setDate(diffToMon);
-
-        // 计算当前周数
-        const weekOneDate = new Date(globalConfig.week1StartDate);
-        const diffTime = startOfWeek.getTime() - weekOneDate.getTime();
-        const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
-        
-        let currentWeekNum = Math.floor(diffDays / 7) + 1;
-        
-        // 规则：W1 之前不显示课程，且上方日期部分不显示 Week number
-        const isBeforeWeek1 = currentWeekNum < 1;
-        const weekKey = isBeforeWeek1 ? "" : "SW" + (currentWeekNum < 10 ? "0" + currentWeekNum : currentWeekNum);
-        const weekKeyAlt = isBeforeWeek1 ? "" : weekKey + ".1";
-
-        // 渲染表头左上角
-        let headerLabelHtml = isBeforeWeek1 ? "" : `W${currentWeekNum}`;
-        let headerHtml = `<div style="padding: 8px; text-align: center; font-size: 11px; font-weight: bold; color: #a19f9d; border-right: 1px solid #e1dfdd; display: flex; align-items: center; justify-content: center;">${headerLabelHtml}</div>`;
-        
-        const daysNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-        for (let i = 0; i < totalDays; i++) {
-            let curr = new Date(startOfWeek);
-            curr.setDate(startOfWeek.getDate() + i);
-            let dateLabel = `${daysNames[i]} ${curr.getDate()}th ${curr.toLocaleDateString('en-US', { month: 'short' })}`;
-            headerHtml += `<div style="padding: 8px; text-align: center; font-size: 12px; font-weight: 600; color: #323130; border-right: 1px solid #e1dfdd;">${dateLabel}</div>`;
-        }
-        headerRow.innerHTML = headerHtml;
-
-        const wrapper = document.getElementById('aice-days-wrapper');
-        let colsHtml = '';
-        for (let i = 0; i < totalDays; i++) {
-            colsHtml += `<div class="aice-day-col" data-day-index="${i + 1}" style="position: relative; border-bottom: 1px solid #e1dfdd; border-right: 1px solid #e1dfdd; height: 660px; background-image: repeating-linear-gradient(0deg, transparent, transparent 59px, #f3f2f1 59px, #f3f2f1 60px);"></div>`;
-        }
-        wrapper.innerHTML = colsHtml;
-
-        const colors = ["#c3d66b", "#9e6b9e", "#90baf0", "#f0baf0", "#f0d090"];
-        let renderCount = 0;
-
-        // 只有当大于等于 W1 时才去匹配并渲染 CSV 中的课程
-        if (!isBeforeWeek1 && rawCsvData.length > 0) {
-            rawCsvData.forEach((row, idx) => {
-                const sem = row['Semester'] ? row['Semester'].trim().toUpperCase() : "";
-                if (sem !== globalConfig.defaultSemester.toUpperCase()) return;
-                
-                // 同时检查主列和 .1 备用列（只要有一处为 1 就代表本周有课）
-                const val1 = row[weekKey] !== undefined ? String(row[weekKey]).trim() : "0";
-                const val2 = row[weekKeyAlt] !== undefined ? String(row[weekKeyAlt]).trim() : "0";
-                if (val1 !== "1" && val2 !== "1") return;
-
-                const dayStr = row['Day of Week'] ? row['Day of Week'].trim().toLowerCase() : '';
-                const dayMap = { 
-                    'monday': 1, 'mon': 1, 
-                    'tuesday': 2, 'tue': 2, 
-                    'wednesday': 3, 'wed': 3, 
-                    'thursday': 4, 'thu': 4, 
-                    'friday': 5, 'fri': 5, 
-                    'saturday': 6, 'sat': 6, 
-                    'sunday': 7, 'sun': 7 
-                };
-                const dIndex = dayMap[dayStr];
-                if (!dIndex || dIndex > totalDays) return;
-
-                const targetCol = wrapper.querySelector(`.aice-day-col[data-day-index="${dIndex}"]`);
-                if (!targetCol) return;
-
-                const sh = Number(row['Start Time']);
-                const eh = Number(row['End Time']);
-                if (isNaN(sh) || isNaN(eh)) return;
-
-                const moduleCode = row['Module'] || '';
-                const moduleName = row['Name'] || '';
-                const roomPart = row['Programmes'] || "32 / 3027 ECS Teaching Lab";
-                const bgColor = colors[idx % colors.length];
-
-                const topPx = (sh - 8) * 60;
-                const heightPx = (eh - sh) * 60;
-
-                const card = document.createElement('div');
-                card.style.cssText = `position: absolute; top: ${topPx}px; left: 4px; right: 4px; height: ${heightPx}px; background-color: ${bgColor}; color: #1f1f1f; border-radius: 4px; padding: 6px 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); overflow: hidden; box-sizing: border-box; display: flex; flex-direction: column; justify-content: space-between;`;
-
-                card.innerHTML = `
-                    <div style="position: relative; z-index: 2;">
-                        <div style="font-size: 11px; font-weight: bold; line-height: 1.2;">${moduleCode} - ${moduleName}</div>
-                        <div style="font-size: 10px; opacity: 0.9; margin-top: 2px;">${roomPart}</div>
-                    </div>
-                `;
-                targetCol.appendChild(card);
-                renderCount++;
-            });
-        }
-
-        const end = new Date(startOfWeek);
-        end.setDate(startOfWeek.getDate() + (totalDays - 1));
-        const weekTitleSuffix = isBeforeWeek1 ? "" : ` (W${currentWeekNum})`;
-        document.getElementById('aice-date-title').innerText = `${startOfWeek.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – ${end.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}${weekTitleSuffix}`;
-    }
-
-    function parseCSV(text) {
-        const lines = text.split(/\r\n|\n/);
-        if(lines.length === 0) return [];
-        
-        const firstLine = lines[0];
-        let delimiter = ',';
-        if (firstLine.includes(';') && !firstLine.includes(',')) delimiter = ';';
-        else if (firstLine.includes('\t')) delimiter = '\t';
-
-        const headers = firstLine.split(delimiter).map(h => h.trim().replace(/^"|"$/g, '').replace(/^\uFEFF/, ''));
-        const result = [];
-
-        for (let i = 1; i < lines.length; i++) {
-            if (!lines[i].trim()) continue;
-            const currentline = lines[i].split(new RegExp(delimiter + '(?=(?:(?:[^"]*"){2})*[^"]*$)'));
-            const obj = {};
-            for (let j = 0; j < headers.length; j++) {
-                let val = currentline[j] ? currentline[j].trim() : '';
-                val = val.replace(/^"|"$/g, '').replace(/\r$/, '');
-                obj[headers[j]] = val;
+        function setupTimeAxis() {
+            const timeAxisEl = document.getElementById('aice-time-axis');
+            if (!timeAxisEl) return;
+            let axisHtml = '';
+            for (let h = 8; h < 19; h++) {
+                let timeStr = (h < 10 ? '0' + h : h) + ':00';
+                axisHtml += `<div style="height: 60px; border-bottom: 1px solid #e1dfdd; border-right: 1px solid #e1dfdd; text-align: right; padding-right: 8px; font-size: 11px; color: #605e5c; line-height: 60px;">${timeStr}</div>`;
             }
-            result.push(obj);
+            timeAxisEl.innerHTML = axisHtml;
         }
-        return result;
-    }
 
-    function setupEventListeners() {
-        document.getElementById('sem1-btn').onclick = function() {
-            globalConfig.defaultSemester = "S1";
-            this.style.background = "rgba(255,255,255,0.2)";
-            document.getElementById('sem2-btn').style.background = "transparent";
-            refresh();
-        };
-        document.getElementById('sem2-btn').onclick = function() {
-            globalConfig.defaultSemester = "S2";
-            this.style.background = "rgba(255,255,255,0.2)";
-            document.getElementById('sem1-btn').style.background = "transparent";
-            refresh();
-        };
+        function refresh() {
+            const totalDays = includeWeekends ? 7 : 5;
+            const headerRow = document.getElementById('aice-header-row');
+            const gridBody = document.getElementById('aice-grid-body');
+            if (!headerRow || !gridBody) return;
+            
+            const gridTemplate = `60px repeat(${totalDays}, minmax(140px, 1fr))`;
+            headerRow.style.gridTemplateColumns = gridTemplate;
+            gridBody.style.gridTemplateColumns = gridTemplate;
 
-        document.getElementById('aice-prev-btn').onclick = function() {
-            baseDate.setDate(baseDate.getDate() - 7);
-            refresh();
-        };
-        document.getElementById('aice-next-btn').onclick = function() {
-            baseDate.setDate(baseDate.getDate() + 7);
-            refresh();
-        };
-        document.getElementById('aice-today-btn').onclick = function() {
-            baseDate = new Date();
-            refresh();
-        };
-        document.getElementById('aice-weekend-btn').onclick = function() {
-            includeWeekends = !includeWeekends;
-            this.innerText = includeWeekends ? "Hide Weekends" : "Show Weekends";
-            refresh();
-        };
-    }
+            const startOfWeek = new Date(baseDate);
+            if (isNaN(startOfWeek.getTime())) {
+                baseDate = new Date();
+                return;
+            }
+            const dayOfWeek = startOfWeek.getDay();
+            const diffToMon = startOfWeek.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1);
+            startOfWeek.setDate(diffToMon);
 
-    if (document.readyState === "complete" || document.readyState === "interactive") {
-        setTimeout(initAiceApp, 50);
-    } else {
-        document.addEventListener("DOMContentLoaded", initAiceApp);
-    }
-})();
-</script>
+            const weekOneDate = new Date(globalConfig.week1StartDate);
+            const diffTime = startOfWeek.getTime() - weekOneDate.getTime();
+            const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+            
+            let currentWeekNum = Math.floor(diffDays / 7) + 1;
+            
+            const isBeforeWeek1 = currentWeekNum < 1;
+            const weekKey = isBeforeWeek1 ? "" : "SW" + (currentWeekNum < 10 ? "0" + currentWeekNum : currentWeekNum);
+            const weekKeyAlt = isBeforeWeek1 ? "" : weekKey + ".1";
+
+            let headerLabelHtml = isBeforeWeek1 ? "" : `W${currentWeekNum}`;
+            let headerHtml = `<div style="padding: 8px; text-align: center; font-size: 11px; font-weight: bold; color: #a19f9d; border-right: 1px solid #e1dfdd; display: flex; align-items: center; justify-content: center;">${headerLabelHtml}</div>`;
+            
+            const daysNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+            for (let i = 0; i < totalDays; i++) {
+                let curr = new Date(startOfWeek);
+                curr.setDate(startOfWeek.getDate() + i);
+                let dateLabel = `${daysNames[i]} ${curr.getDate()}th ${curr.toLocaleDateString('en-US', { month: 'short' })}`;
+                headerHtml += `<div style="padding: 8px; text-align: center; font-size: 12px; font-weight: 600; color: #323130; border-right: 1px solid #e1dfdd;">${dateLabel}</div>`;
+            }
+            headerRow.innerHTML = headerHtml;
+
+            const wrapper = document.getElementById('aice-days-wrapper');
+            let colsHtml = '';
+            for (let i = 0; i < totalDays; i++) {
+                colsHtml += `<div class="aice-day-col" data-day-index="${i + 1}" style="position: relative; border-bottom: 1px solid #e1dfdd; border-right: 1px solid #e1dfdd; height: 660px; background-image: repeating-linear-gradient(0deg, transparent, transparent 59px, #f3f2f1 59px, #f3f2f1 60px);"></div>`;
+            }
+            wrapper.innerHTML = colsHtml;
+
+            const colors = ["#c3d66b", "#9e6b9e", "#90baf0", "#f0baf0", "#f0d090"];
+            let renderCount = 0;
+
+            if (!isBeforeWeek1 && rawCsvData.length > 0) {
+                rawCsvData.forEach((row, idx) => {
+                    const sem = row['Semester'] ? row['Semester'].trim().toUpperCase() : "";
+                    if (sem !== globalConfig.defaultSemester.toUpperCase()) return;
+                    
+                    const val1 = row[weekKey] !== undefined ? String(row[weekKey]).trim() : "0";
+                    const val2 = row[weekKeyAlt] !== undefined ? String(row[weekKeyAlt]).trim() : "0";
+                    if (val1 !== "1" && val2 !== "1") return;
+
+                    const dayStr = row['Day of Week'] ? row['Day of Week'].trim().toLowerCase() : '';
+                    const dayMap = { 
+                        'monday': 1, 'mon': 1, 
+                        'tuesday': 2, 'tue': 2, 
+                        'wednesday': 3, 'wed': 3, 
+                        'thursday': 4, 'thu': 4, 
+                        'friday': 5, 'fri': 5, 
+                        'saturday': 6, 'sat': 6, 
+                        'sunday': 7, 'sun': 7 
+                    };
+                    const dIndex = dayMap[dayStr];
+                    if (!dIndex || dIndex > totalDays) return;
+
+                    const targetCol = wrapper.querySelector(`.aice-day-col[data-day-index="${dIndex}"]`);
+                    if (!targetCol) return;
+
+                    const sh = Number(row['Start Time']);
+                    const eh = Number(row['End Time']);
+                    if (isNaN(sh) || isNaN(eh)) return;
+
+                    const moduleCode = row['Module'] || '';
+                    const moduleName = row['Name'] || '';
+                    const roomPart = row['Programmes'] || "32 / 3027 ECS Teaching Lab";
+                    const bgColor = colors[idx % colors.length];
+
+                    const topPx = (sh - 8) * 60;
+                    const heightPx = (eh - sh) * 60;
+
+                    const card = document.createElement('div');
+                    card.style.cssText = `position: absolute; top: ${topPx}px; left: 4px; right: 4px; height: ${heightPx}px; background-color: ${bgColor}; color: #1f1f1f; border-radius: 4px; padding: 6px 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); overflow: hidden; box-sizing: border-box; display: flex; flex-direction: column; justify-content: space-between;`;
+
+                    card.innerHTML = `
+                        <div style="position: relative; z-index: 2;">
+                            <div style="font-size: 11px; font-weight: bold; line-height: 1.2;">${moduleCode} - ${moduleName}</div>
+                            <div style="font-size: 10px; opacity: 0.9; margin-top: 2px;">${roomPart}</div>
+                        </div>
+                    `;
+                    targetCol.appendChild(card);
+                    renderCount++;
+                });
+            }
+
+            const end = new Date(startOfWeek);
+            end.setDate(startOfWeek.getDate() + (totalDays - 1));
+            const weekTitleSuffix = isBeforeWeek1 ? "" : ` (W${currentWeekNum})`;
+            document.getElementById('aice-date-title').innerText = `${startOfWeek.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – ${end.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}${weekTitleSuffix}`;
+        }
+
+        function parseCSV(text) {
+            const lines = text.split(/\r\n|\n/);
+            if(lines.length === 0) return [];
+            
+            const firstLine = lines[0];
+            let delimiter = ',';
+            if (firstLine.includes(';') && !firstLine.includes(',')) delimiter = ';';
+            else if (firstLine.includes('\t')) delimiter = '\t';
+
+            const headers = firstLine.split(delimiter).map(h => h.trim().replace(/^"|"$/g, '').replace(/^\uFEFF/, ''));
+            const result = [];
+
+            for (let i = 1; i < lines.length; i++) {
+                if (!lines[i].trim()) continue;
+                const currentline = lines[i].split(new RegExp(delimiter + '(?=(?:(?:[^"]*"){2})*[^"]*$)'));
+                const obj = {};
+                for (let j = 0; j < headers.length; j++) {
+                    let val = currentline[j] ? currentline[j].trim() : '';
+                    val = val.replace(/^"|"$/g, '').replace(/\r$/, '');
+                    obj[headers[j]] = val;
+                }
+                result.push(obj);
+            }
+            return result;
+        }
+
+        function setupEventListeners() {
+            document.getElementById('sem1-btn').onclick = function() {
+                globalConfig.defaultSemester = "S1";
+                this.style.background = "rgba(255,255,255,0.2)";
+                document.getElementById('sem2-btn').style.background = "transparent";
+                refresh();
+            };
+            document.getElementById('sem2-btn').onclick = function() {
+                globalConfig.defaultSemester = "S2";
+                this.style.background = "rgba(255,255,255,0.2)";
+                document.getElementById('sem1-btn').style.background = "transparent";
+                refresh();
+            };
+
+            document.getElementById('aice-prev-btn').onclick = function() {
+                baseDate.setDate(baseDate.getDate() - 7);
+                refresh();
+            };
+            document.getElementById('aice-next-btn').onclick = function() {
+                baseDate.setDate(baseDate.getDate() + 7);
+                refresh();
+            };
+            document.getElementById('aice-today-btn').onclick = function() {
+                baseDate = new Date();
+                refresh();
+            };
+            document.getElementById('aice-weekend-btn').onclick = function() {
+                includeWeekends = !includeWeekends;
+                this.innerText = includeWeekends ? "Hide Weekends" : "Show Weekends";
+                refresh();
+            };
+        }
+
+        if (document.readyState === "complete" || document.readyState === "interactive") {
+            setTimeout(initAiceApp, 50);
+        } else {
+            document.addEventListener("DOMContentLoaded", initAiceApp);
+        }
+    })();
+    </script>
+</body>
+</html>
