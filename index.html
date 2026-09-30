@@ -92,6 +92,8 @@ button:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
 .info-i{position:absolute;right:10px;bottom:10px;width:22px;height:22px;padding:0;border-radius:50%;background:#6c8fc4;color:#fff;font:700 13px/22px Georgia,serif;text-align:center}
 .info-i:hover{background:#4d74b3}
 .kpi .note{padding-right:34px}
+.ev .np{display:inline-block;background:#fff;color:#a30f0f;font-weight:800;font-size:11px;padding:0 6px;border-radius:3px;margin-top:2px}
+.ev .ok{display:inline-block;font-size:11px;opacity:.85;margin-top:2px}
 </style>
 </head>
 <body>
@@ -229,9 +231,9 @@ const esc=t=>t.replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&qu
 function evHTML(e,idx,dayKey){
   const n=e.cl.lanes.length, wd=100/n, r=e.rows[0], c=pal(r['Programmes'],yearOf(r['Module']),e.type), h=(e.e-e.s)*HPX-1;
   const u=k=>esc([...new Set(e.rows.map(r=>r[k]).filter(x=>x&&x.toUpperCase()!=='NA'))].join('; '));
-  const prog=esc([...new Set(e.rows.map(r=>r['Programmes']))].join(', ')), rq=u('Requirements'), pr=u('Preparation Requirement'), st=u('Requirement Status');
-  const more=`<span class="more">${e.type?'Lab type: '+esc(e.type)+'<br>':''}Students: ${stu(e)}${pr?'<br>Preparation: '+pr:''}${st?'<br>Status: '+st:''}</span>`;
-  return `<button class="ev${c.prac?' prac':''}" data-k="${dayKey}:${idx}" style="background-color:${c.bg};color:${c.fg};border-left-color:${c.base};top:${(e.e>e.s?(e.s-START)*HPX:0)}px;height:${h}px;min-height:${h}px;left:calc(${e.lane*wd}% + 3px);width:calc(${wd}% - 6px);--l:calc(${e.lane*wd}% + 3px)"><span class="l"><b>${e.code}</b> ${esc(e.name||'')}</span><span class="l sub">${prog} · ${hm(e.s)}–${hm(e.e)}</span>${rq?`<span class="l rq">Requirements: ${rq}</span>`:''}${more}</button>`;
+  const prog=esc([...new Set(e.rows.map(r=>r['Programmes']))].join(', ')), rq=u('Requirements'), pr=u('Preparation Requirement'), st=e.rows.some(r=>r['Requirement Status']!=='Prepared');
+  const more=`<span class="more">${e.type?'Lab type: '+esc(e.type)+'<br>':''}Students: ${stu(e)}${pr?'<br>Preparation: '+pr:''}</span>`;
+  return `<button class="ev${c.prac?' prac':''}" data-k="${dayKey}:${idx}" style="background-color:${c.bg};color:${c.fg};border-left-color:${c.base};top:${(e.e>e.s?(e.s-START)*HPX:0)}px;height:${h}px;min-height:${h}px;left:calc(${e.lane*wd}% + 3px);width:calc(${wd}% - 6px);--l:calc(${e.lane*wd}% + 3px)"><span class="l"><b>${e.code}</b> ${esc(e.name||'')}</span><span class="l">${st?'<span class="np">Not prepared</span>':'<span class="ok">Prepared</span>'}</span><span class="l sub">${prog} · ${hm(e.s)}–${hm(e.e)}</span>${rq?`<span class="l rq">Requirements: ${rq}</span>`:''}${more}</button>`;
 }
 function chipHTML(e,key,i){const r=e.rows[0],c=pal(r['Programmes'],yearOf(r['Module']),e.type);return `<button class="chip${c.prac?' prac':''}" style="background-color:${c.bg};color:${c.fg};border-left:4px solid ${c.base}" data-k="${key}:${i}">${e.code}</button>`}
 function renderLegend(){
@@ -399,7 +401,7 @@ document.addEventListener('click',ev=>{
   const t=ev.target.closest('button, #ov'); if(!t) return;
   if(t.id==='ov'||t.id==='cls') return closeDlg();
   if(t.dataset.k) return showDetail(t.dataset.k);
-  if(t.dataset.note){S.note=!S.note; return render()}
+  if(t.dataset.note!==undefined){S.note=!S.note; return render()}
   if(t.dataset.line){S.lines[t.dataset.line]=!S.lines[t.dataset.line]; return render()}
   if(t.dataset.mode){S.mode=t.dataset.mode; return render()}
   if(t.dataset.hide){S.hide.has(t.dataset.hide)?S.hide.delete(t.dataset.hide):S.hide.add(t.dataset.hide); renderLegend(); render(); return}
