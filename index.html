@@ -186,14 +186,27 @@ function layout(ev){
 }
 
 /* ---------- rendering ---------- */
-/* colour: programme -> hue, year -> lightness (+ small hue step), lab type -> Practical is
-   a touch darker, more saturated and striped, so it stays close to Computer but distinct */
-const PH={AICE:172,ELEC:24,FEEG:268}, FB=[338,205,96,48,300,0], YL=[0,88,78,68,58,52,46];
+/* colour: each programme owns one base colour (the left edge of its blocks). Year sets how much
+   white is mixed into the fill (Year 6 = the pure base colour, Year 1 = palest). Practical labs
+   use the same fill a little darker plus stripes. Unknown programmes take the reserved colours in
+   order of first appearance in the CSV, or an override in config.json: "programmeColours". */
+const BASE={AICE:'#ff6b59',ELEC:'#74C9E5',FEEG:'#954e9b'};
+const RESERVE=['#f0b429','#4cb782','#5867d6'];
+const TINT=[0,.78,.6,.42,.28,.14,0];
+const hex2=h=>[1,3,5].map(i=>parseInt(h.slice(i,i+2),16));
+const mixc=(c,t,k)=>c.map((v,i)=>Math.round(v+(t[i]-v)*k));
+const lum=c=>{const f=v=>{v/=255;return v<=.03928?v/12.92:((v+.055)/1.055)**2.4};return .2126*f(c[0])+.7152*f(c[1])+.0722*f(c[2])};
+function baseOf(p){
+  const cm=S.cfg.programmeColours||{}; if(cm[p]) return cm[p]; if(BASE[p]) return BASE[p];
+  const un=(S.progs||[]).filter(x=>!BASE[x]&&!cm[x]); return RESERVE[Math.max(0,un.indexOf(p))%RESERVE.length];
+}
 const yearOf=m=>+((m.match(/\d/)||[0])[0]);
 function pal(prog,y,type){
-  let h=PH[prog]; if(h==null) h=FB[[...prog].reduce((a,c)=>a+c.charCodeAt(0),0)%FB.length];
-  const prac=/practical/i.test(type), L=YL[Math.min(y,6)]-(prac?5:0);
-  return {bg:`hsl(${(h+(y-1)*8)%360} ${prac?70:48}% ${L}%)`, fg:L<56?'#fff':'#14202a', prac};
+  const base=baseOf(prog), prac=/practical/i.test(type);
+  let c=mixc(hex2(base),[255,255,255],TINT[Math.min(Math.max(y,1),6)]);
+  if(prac) c=mixc(c,[0,0,0],.12);
+  const L=lum(c), dark=(L+.05)/.064, white=1.05/(L+.05);
+  return {bg:`rgb(${c})`, fg:dark>=white?'#14202a':'#fff', prac, base};
 }
 const rowKey=r=>r['Programmes']+'|'+yearOf(r['Module']);
 const esc=t=>t.replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
@@ -201,9 +214,9 @@ function evHTML(e,idx,dayKey){
   const rq=esc([...new Set(e.rows.map(r=>r['Requirements']).filter(x=>x&&x.toUpperCase()!=='NA'))].join('; '));
   const n=e.cl.lanes.length, wd=100/n, r=e.rows[0], c=pal(r['Programmes'],yearOf(r['Module']),e.type);
   const prog=[...new Set(e.rows.map(r=>r['Programmes']))].join(', ');
-  return `<button class="ev${c.prac?' prac':''}" title="${e.code} ${e.name}" data-k="${dayKey}:${idx}" style="background-color:${c.bg};color:${c.fg};top:${(e.s-START)*HPX}px;height:${(e.e-e.s)*HPX-1}px;left:calc(${e.lane*wd}% + 3px);width:calc(${wd}% - 6px)"><b>${e.code}</b>${e.name||''}<small>${prog} · ${hm(e.s)}–${hm(e.e)}</small>${rq?`<small class="rq">Requirements: ${rq}</small>`:''}</button>`;
+  return `<button class="ev${c.prac?' prac':''}" title="${e.code} ${e.name}" data-k="${dayKey}:${idx}" style="background-color:${c.bg};color:${c.fg};border-left-color:${c.base};top:${(e.s-START)*HPX}px;height:${(e.e-e.s)*HPX-1}px;left:calc(${e.lane*wd}% + 3px);width:calc(${wd}% - 6px)"><b>${e.code}</b>${e.name||''}<small>${prog} · ${hm(e.s)}–${hm(e.e)}</small>${rq?`<small class="rq">Requirements: ${rq}</small>`:''}</button>`;
 }
-function chipHTML(e,key,i){const r=e.rows[0],c=pal(r['Programmes'],yearOf(r['Module']),e.type);return `<button class="chip${c.prac?' prac':''}" style="background-color:${c.bg};color:${c.fg}" data-k="${key}:${i}">${e.code}</button>`}
+function chipHTML(e,key,i){const r=e.rows[0],c=pal(r['Programmes'],yearOf(r['Module']),e.type);return `<button class="chip${c.prac?' prac':''}" style="background-color:${c.bg};color:${c.fg};border-left:4px solid ${c.base}" data-k="${key}:${i}">${e.code}</button>`}
 function renderLegend(){
   const m={}; S.tt.forEach(r=>{const p=r['Programmes'],y=yearOf(r['Module']);m[p]=m[p]||{};m[p][y]=m[p][y]||{};m[p][y][/practical/i.test(r['Lab Type'])?'p':'c']=1});
   $('legend').innerHTML=Object.keys(m).sort().map(p=>`<div class="lg"><h3>${p}</h3>`+Object.keys(m[p]).sort().map(y=>{const o=m[p][y];
@@ -365,7 +378,7 @@ async function init(){
   try{
     const get=async(u)=>{const r=await fetch(u); if(!r.ok) throw new Error(u+' ('+r.status+')'); return r.text()};
     const [p,t,c]=await Promise.all([get('Week-Pattern-AY2627.csv'),get('AICE-Timetable-AY2627.csv'),get('config.json').catch(()=>'{}')]);
-    loadPattern(p); S.tt=toObjs(parseCSV(t),true); Object.assign(S.cfg,JSON.parse(c||'{}'));
+    loadPattern(p); S.tt=toObjs(parseCSV(t),true); Object.assign(S.cfg,JSON.parse(c||'{}')); S.progs=[...new Set(S.tt.map(r=>r['Programmes']))];
   }catch(err){
     $('title').textContent='Could not load data';
     $('status').textContent=err.message+' – open this page through a web server (e.g. python -m http.server), not by double-clicking the file.';
