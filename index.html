@@ -15,6 +15,11 @@
 </head>
 <body>
 
+    <!-- 调试信息栏（用于排查为什么没显示） -->
+    <div id="debug-panel" style="background: #fff3cd; border: 1px solid #ffeeba; color: #856404; padding: 8px 12px; margin-bottom: 10px; border-radius: 4px; font-size: 12px; font-weight: bold;">
+        调试状态: 正在加载...
+    </div>
+
     <div id="aice-timetable-root" style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #ffffff; color: #333333; border: 1px solid #e1dfdd; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); max-width: 100%; margin: 0 auto; overflow: hidden;">
         
         <!-- 顶部控制栏 -->
@@ -42,13 +47,13 @@
 
         <!-- 日历滚动视窗 -->
         <div style="max-height: 650px; overflow-y: auto; overflow-x: auto; position: relative;">
-            <div style="min-width: 850px;">
+            <div style="min-width: 850px; display: flex; flex-direction: column;">
                 <!-- 表头：星期与日期 -->
                 <div id="aice-header-row" style="display: grid; background-color: #faf9f8; border-bottom: 1px solid #e1dfdd; position: sticky; top: 0; z-index: 20;"></div>
 
                 <!-- 主体网格区：时间轴 + 日程列 -->
                 <div id="aice-grid-body" style="display: grid; position: relative;">
-                    <div id="aice-time-axis" style="background-color: #faf9f8; border-right: 1px solid #e1dfdd;"></div>
+                    <div id="aice-time-axis" style="background-color: #faf9f8; border-right: 1px solid #e1dfdd; width: 60px; flex-shrink: 0;"></div>
                     <div id="aice-days-wrapper" style="display: contents;"></div>
                 </div>
             </div>
@@ -63,7 +68,13 @@
         };
         let rawCsvData = [];
         let includeWeekends = false;
-        let baseDate = new Date(); // 初始化为当前真实系统日期
+        let baseDate = new Date();
+
+        function showDebug(msg) {
+            const panel = document.getElementById('debug-panel');
+            if(panel) panel.innerText = msg;
+            console.log("DEBUG:", msg);
+        }
 
         async function initAiceApp() {
             try {
@@ -74,7 +85,7 @@
                     if (userConfig.defaultSemester) globalConfig.defaultSemester = String(userConfig.defaultSemester).trim();
                 }
             } catch (e) {
-                console.log("使用内置默认配置");
+                showDebug("提示: config.json 读取失败，使用默认配置");
             }
 
             try {
@@ -82,12 +93,14 @@
                 if (csvRes.ok) {
                     const csvText = await csvRes.text();
                     rawCsvData = parseCSV(csvText);
-                    console.log("CSV 加载成功，总行数:", rawCsvData.length);
+                    showDebug(`CSV 加载成功！共 ${rawCsvData.length} 行。开始渲染...`);
                 } else {
-                    console.error("CSV 加载失败");
+                    showDebug("错误: AICE-Timetable-AY2627.csv 请求返回状态码 " + csvRes.status);
+                    return;
                 }
             } catch (e) {
-                console.error("加载 CSV 出错:", e);
+                showDebug("错误: 加载 CSV 异常 - " + e.message);
+                return;
             }
 
             setupTimeAxis();
@@ -212,6 +225,8 @@
             end.setDate(startOfWeek.getDate() + (totalDays - 1));
             const weekTitleSuffix = isBeforeWeek1 ? "" : ` (W${currentWeekNum})`;
             document.getElementById('aice-date-title').innerText = `${startOfWeek.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – ${end.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}${weekTitleSuffix}`;
+            
+            showDebug(`渲染成功！当前周数: W${currentWeekNum} | 学期: ${globalConfig.defaultSemester} | 本周渲染课程数: ${renderCount}`);
         }
 
         function parseCSV(text) {
