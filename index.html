@@ -39,60 +39,63 @@
 </div>
 
 <script>
-document.addEventListener("DOMContentLoaded", function() {
-    initAiceApp();
-});
-
-if (document.readyState === "complete" || document.readyState === "interactive") {
-    setTimeout(initAiceApp, 100);
-}
-
-async function initAiceApp() {
+(function() {
     let globalConfig = {
         week1StartDate: "2026-09-14",
         defaultSemester: "S1"
     };
     let rawCsvData = [];
     let includeWeekends = false;
-    let baseDate = new Date(); // 刷新网页时默认读取当前系统日期
+    let baseDate = new Date(); // 初始化为当前真实系统日期
 
-    try {
-        // 1. 读取 config.json
-        const configRes = await fetch('config.json');
-        if (configRes.ok) {
-            let userConfig = await configRes.json();
-            if (userConfig.week1StartDate) globalConfig.week1StartDate = userConfig.week1StartDate.trim();
-            if (userConfig.defaultSemester) globalConfig.defaultSemester = String(userConfig.defaultSemester).trim();
+    async function initAiceApp() {
+        // 1. 尝试读取 config.json（带容错，失败不影响主程序）
+        try {
+            const configRes = await fetch('config.json');
+            if (configRes.ok) {
+                let userConfig = await configRes.json();
+                if (userConfig.week1StartDate) globalConfig.week1StartDate = userConfig.week1StartDate.trim();
+                if (userConfig.defaultSemester) globalConfig.defaultSemester = String(userConfig.defaultSemester).trim();
+            }
+        } catch (e) {
+            console.log("使用内置默认配置");
         }
-        console.log("当前生效配置:", globalConfig);
 
-        // 2. 异步读取完整的 CSV 文件
-        const csvRes = await fetch('AICE-Timetable-AY2627.csv');
-        if (csvRes.ok) {
-            const csvText = await csvRes.text();
-            rawCsvData = parseCSV(csvText);
-            console.log("CSV 完整文件加载成功，总行数:", rawCsvData.length);
-        } else {
-            console.error("无法加载 AICE-Timetable-AY2627.csv 文件");
+        // 2. 加载 CSV 文件
+        try {
+            const csvRes = await fetch('AICE-Timetable-AY2627.csv');
+            if (csvRes.ok) {
+                const csvText = await csvRes.text();
+                rawCsvData = parseCSV(csvText);
+                console.log("CSV 加载成功，总行数:", rawCsvData.length);
+            } else {
+                console.error("CSV 加载失败");
+            }
+        } catch (e) {
+            console.error("加载 CSV 出错:", e);
         }
-    } catch (e) {
-        console.error("初始化出错:", e);
+
+        setupTimeAxis();
+        setupEventListeners();
+        refresh();
     }
 
-    const timeAxisEl = document.getElementById('aice-time-axis');
-    if (!timeAxisEl) return;
-
-    let axisHtml = '';
-    for (let h = 8; h < 19; h++) {
-        let timeStr = (h < 10 ? '0' + h : h) + ':00';
-        axisHtml += `<div style="height: 60px; border-bottom: 1px solid #e1dfdd; border-right: 1px solid #e1dfdd; text-align: right; padding-right: 8px; font-size: 11px; color: #605e5c; line-height: 60px;">${timeStr}</div>`;
+    function setupTimeAxis() {
+        const timeAxisEl = document.getElementById('aice-time-axis');
+        if (!timeAxisEl) return;
+        let axisHtml = '';
+        for (let h = 8; h < 19; h++) {
+            let timeStr = (h < 10 ? '0' + h : h) + ':00';
+            axisHtml += `<div style="height: 60px; border-bottom: 1px solid #e1dfdd; border-right: 1px solid #e1dfdd; text-align: right; padding-right: 8px; font-size: 11px; color: #605e5c; line-height: 60px;">${timeStr}</div>`;
+        }
+        timeAxisEl.innerHTML = axisHtml;
     }
-    timeAxisEl.innerHTML = axisHtml;
 
     function refresh() {
         const totalDays = includeWeekends ? 7 : 5;
         const headerRow = document.getElementById('aice-header-row');
         const gridBody = document.getElementById('aice-grid-body');
+        if (!headerRow || !gridBody) return;
         
         const gridTemplate = `60px repeat(${totalDays}, minmax(140px, 1fr))`;
         headerRow.style.gridTemplateColumns = gridTemplate;
@@ -114,10 +117,10 @@ async function initAiceApp() {
         
         let currentWeekNum = Math.floor(diffDays / 7) + 1;
         
-        // 核心要求 2：W1 之前不显示课程，且上方日期部分不显示 Week number
+        // 规则：W1 之前不显示课程，且上方日期部分不显示 Week number
         const isBeforeWeek1 = currentWeekNum < 1;
         const weekKey = isBeforeWeek1 ? "" : "SW" + (currentWeekNum < 10 ? "0" + currentWeekNum : currentWeekNum);
-        const weekKeyAlt = isBeforeWeek1 ? "" : weekKey + ".1"; // 同时兼容带有 .1 后缀的第二套列
+        const weekKeyAlt = isBeforeWeek1 ? "" : weekKey + ".1";
 
         // 渲染表头左上角
         let headerLabelHtml = isBeforeWeek1 ? "" : `W${currentWeekNum}`;
@@ -143,7 +146,7 @@ async function initAiceApp() {
         let renderCount = 0;
 
         // 只有当大于等于 W1 时才去匹配并渲染 CSV 中的课程
-        if (!isBeforeWeek1) {
+        if (!isBeforeWeek1 && rawCsvData.length > 0) {
             rawCsvData.forEach((row, idx) => {
                 const sem = row['Semester'] ? row['Semester'].trim().toUpperCase() : "";
                 if (sem !== globalConfig.defaultSemester.toUpperCase()) return;
@@ -195,8 +198,6 @@ async function initAiceApp() {
             });
         }
 
-        console.log(`[渲染] 周次 ${weekKey || 'Pre-W1'}: 成功渲染了 ${renderCount} 节课`);
-
         const end = new Date(startOfWeek);
         end.setDate(startOfWeek.getDate() + (totalDays - 1));
         const weekTitleSuffix = isBeforeWeek1 ? "" : ` (W${currentWeekNum})`;
@@ -229,36 +230,43 @@ async function initAiceApp() {
         return result;
     }
 
-    document.getElementById('sem1-btn').onclick = function() {
-        globalConfig.defaultSemester = "S1";
-        this.style.background = "rgba(255,255,255,0.2)";
-        document.getElementById('sem2-btn').style.background = "transparent";
-        refresh();
-    };
-    document.getElementById('sem2-btn').onclick = function() {
-        globalConfig.defaultSemester = "S2";
-        this.style.background = "rgba(255,255,255,0.2)";
-        document.getElementById('sem1-btn').style.background = "transparent";
-    };
+    function setupEventListeners() {
+        document.getElementById('sem1-btn').onclick = function() {
+            globalConfig.defaultSemester = "S1";
+            this.style.background = "rgba(255,255,255,0.2)";
+            document.getElementById('sem2-btn').style.background = "transparent";
+            refresh();
+        };
+        document.getElementById('sem2-btn').onclick = function() {
+            globalConfig.defaultSemester = "S2";
+            this.style.background = "rgba(255,255,255,0.2)";
+            document.getElementById('sem1-btn').style.background = "transparent";
+            refresh();
+        };
 
-    document.getElementById('aice-prev-btn').onclick = function() {
-        baseDate.setDate(baseDate.getDate() - 7);
-        refresh();
-    };
-    document.getElementById('aice-next-btn').onclick = function() {
-        baseDate.setDate(baseDate.getDate() + 7);
-        refresh();
-    };
-    document.getElementById('aice-today-btn').onclick = function() {
-        baseDate = new Date(); // 点击 today 按钮回到当前真实系统日期
-        refresh();
-    };
-    document.getElementById('aice-weekend-btn').onclick = function() {
-        includeWeekends = !includeWeekends;
-        this.innerText = includeWeekends ? "Hide Weekends" : "Show Weekends";
-        refresh();
-    };
+        document.getElementById('aice-prev-btn').onclick = function() {
+            baseDate.setDate(baseDate.getDate() - 7);
+            refresh();
+        };
+        document.getElementById('aice-next-btn').onclick = function() {
+            baseDate.setDate(baseDate.getDate() + 7);
+            refresh();
+        };
+        document.getElementById('aice-today-btn').onclick = function() {
+            baseDate = new Date();
+            refresh();
+        };
+        document.getElementById('aice-weekend-btn').onclick = function() {
+            includeWeekends = !includeWeekends;
+            this.innerText = includeWeekends ? "Hide Weekends" : "Show Weekends";
+            refresh();
+        };
+    }
 
-    refresh();
-}
+    if (document.readyState === "complete" || document.readyState === "interactive") {
+        setTimeout(initAiceApp, 50);
+    } else {
+        document.addEventListener("DOMContentLoaded", initAiceApp);
+    }
+})();
 </script>
