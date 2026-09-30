@@ -57,7 +57,7 @@ async function initAiceApp() {
     let baseDate = new Date(); // 默认初始化为当前真实系统日期
 
     try {
-        // 1. 读取配置文件
+        // 1. 读取配置文件 (config.json) 获取每年变动的 week1 开始时间
         const configRes = await fetch('config.json');
         if (configRes.ok) {
             let userConfig = await configRes.json();
@@ -66,7 +66,7 @@ async function initAiceApp() {
         }
         console.log("当前生效配置:", globalConfig);
 
-        // 2. 直接从仓库异步读取完整的 CSV 文件
+        // 2. 异步通过 fetch 读取真实的完整 CSV 文件
         const csvRes = await fetch('AICE-Timetable-AY2627.csv');
         if (csvRes.ok) {
             const csvText = await csvRes.text();
@@ -114,11 +114,11 @@ async function initAiceApp() {
         
         let currentWeekNum = Math.floor(diffDays / 7) + 1;
         
-        // 核心逻辑：如果小于第1周（开学前），不显示周数代号，也不去读取课程
+        // 核心要求 2：W1 之前不显示课程，且上方日期部分不显示 Week number
         const isBeforeWeek1 = currentWeekNum < 1;
         const weekKey = isBeforeWeek1 ? "" : "SW" + (currentWeekNum < 10 ? "0" + currentWeekNum : currentWeekNum);
 
-        // 渲染表头左上角：W1之前保持空白或不显示周数
+        // 渲染表头左上角：W1之前保持空白
         let headerLabelHtml = isBeforeWeek1 ? "" : `W${currentWeekNum}`;
         let headerHtml = `<div style="padding: 8px; text-align: center; font-size: 11px; font-weight: bold; color: #a19f9d; border-right: 1px solid #e1dfdd; display: flex; align-items: center; justify-content: center;">${headerLabelHtml}</div>`;
         
@@ -141,7 +141,7 @@ async function initAiceApp() {
         const colors = ["#c3d66b", "#9e6b9e", "#90baf0", "#f0baf0", "#f0d090"];
         let renderCount = 0;
 
-        // 只有当大于等于 W1 时才渲染课程
+        // 只有当大于等于 W1 时才去匹配并渲染 CSV 中的课程
         if (!isBeforeWeek1) {
             rawCsvData.forEach((row, idx) => {
                 const sem = row['Semester'] ? row['Semester'].trim().toUpperCase() : "";
@@ -248,7 +248,7 @@ async function initAiceApp() {
         refresh();
     };
     document.getElementById('aice-today-btn').onclick = function() {
-        baseDate = new Date(); // 点击 today 按钮返回当前真实系统日期
+        baseDate = new Date(); // 核心要求 3：点击 today 按钮或刷新时采用当前真实系统日期
         refresh();
     };
     document.getElementById('aice-weekend-btn').onclick = function() {
