@@ -113,6 +113,15 @@ button:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
 .hl span:last-child em{color:var(--acc)}
 .kpi.wide .two{min-height:128px;padding-right:150px}
 @media(max-width:520px){.kpi .badge{position:static;width:auto;text-align:left;margin-bottom:8px}.kpi.wide .two{padding-right:0;min-height:0}.hl{flex-direction:row;gap:12px}}
+/* wrapping of long text (dialog + hover cards) */
+#dlg{overflow-x:hidden}
+#dlg dl{grid-template-columns:120px minmax(0,1fr)}
+#dlg dd{min-width:0;overflow-wrap:anywhere;word-break:break-word}
+.ev .l,.ev .more{overflow-wrap:anywhere}
+/* reschedule hover card */
+.ev .rsh{display:block;font-weight:700;margin-top:6px}
+.ev .more .rsh:first-child{margin-top:0}
+.ev .rsl{display:block}
 </style>
 </head>
 <body>
@@ -144,16 +153,16 @@ const DAYS = {mon:1,tue:2,wed:3,thu:4,fri:5,sat:6,sun:7};
 const DN = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
 const MN = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 const $ = id => document.getElementById(id);
-const S = {pat:[], tt:[], cfg:{defaultSemester:'S1'}, view:'week', weekends:false, date:new Date(), hide:new Set(), mode:'weekly', lines:{S1:true,S2:true}, note:false};
+const S = {pat:[], tt:[], rs:[], cfg:{defaultSemester:'S1'}, view:'week', weekends:false, date:new Date(), hide:new Set(), mode:'weekly', lines:{S1:true,S2:true}, note:false};
 
 /* ---------- data ---------- */
-function parseCSV(t){
+function parseCSV(t,D=','){
   const out=[]; let row=[], f='', q=false; t=t.replace(/^\uFEFF/,'');
   for(let i=0;i<t.length;i++){
     const c=t[i];
     if(q){ if(c==='"'){ if(t[i+1]==='"'){f+='"';i++} else q=false } else f+=c }
     else if(c==='"') q=true;
-    else if(c===','){row.push(f);f=''}
+    else if(c===D){row.push(f);f=''}
     else if(c==='\n'||c==='\r'){ if(c==='\r'&&t[i+1]==='\n')i++; row.push(f); out.push(row); row=[]; f='' }
     else f+=c;
   }
@@ -168,6 +177,13 @@ function toObjs(rows, suffixDupes){
     return h;
   });
   return rows.slice(1).map(r=>{const o={}; head.forEach((h,i)=>o[h]=(r[i]||'').trim()); return o});
+}
+/* reschedule.csv: optional. Programmes is forced to "Reschedule"; comma- or tab-separated. */
+function loadRs(t){
+  if(!t||!t.trim()) return [];
+  const first=t.split(/\r?\n/,1)[0], D=first.includes('\t')&&!first.includes(',')?'\t':',';
+  const rows=parseCSV(t,D); if(rows.length<2) return [];
+  return toObjs(rows,true).filter(r=>r['Module']).map(r=>{r['Programmes']='Reschedule'; r._rs=true; return r});
 }
 function ukDate(s){const p=(s||'').split('/'); return p.length===3?new Date(+p[2],+p[1]-1,+p[0]):null}
 
@@ -209,6 +225,17 @@ function eventsFor(d,all){
     g.code=mods.map((m,i)=>i&&m.replace(/^[A-Z]+/,'')!==m&&mods[0].slice(0,4)===m.slice(0,4)?m.replace(/^[A-Z]+/,''):m).join('/');
     g.name=mods.length>1&&g.rows.length>1?'':g.name; g.w=w; g.date=d; return g;
   });
+  if(!all){ /* reschedule labs: one block per day + time slot + Part (stats ignore them) */
+    const rm={};
+    S.rs.forEach(r=>{
+      if((r['Semester']||'').toUpperCase()!==w.sem || r[key]!=='1') return;
+      if(DAYS[(r['Day of Week']||'').slice(0,3).toLowerCase()]!==dow || S.hide.has(rowKey(r))) return;
+      const s=parseFloat(r['Start Time']), e=parseFloat(r['End Time']); if(isNaN(s)||isNaN(e)) return;
+      const n=partNum(r), k=[s,e,n].join('|');
+      (rm[k]=rm[k]||{s,e,rs:true,type:'',code:'Reschedule',name:'Part '+(ROM[n]||n),rows:[],w,date:d}).rows.push(r);
+    });
+    Object.values(rm).forEach(g=>ev.push(g));
+  }
   layout(ev);
   return {w,ev};
 }
@@ -227,7 +254,7 @@ function layout(ev){
    white is mixed into the fill (Year 6 = the pure base colour, Year 1 = palest). Practical labs
    use the same fill a little darker plus stripes. Unknown programmes take the reserved colours in
    order of first appearance in the CSV, or an override in config.json: "programmeColours". */
-const BASE={AICE:'#ff6b59',ELEC:'#74C9E5',FEEG:'#954e9b'};
+const BASE={AICE:'#ff6b59',ELEC:'#74C9E5',FEEG:'#954e9b',Reschedule:'#d9a400'};
 const RESERVE=['#f0b429','#4cb782','#5867d6'];
 const TINT=[0,.78,.6,.42,.28,.14,0];
 const hex2=h=>[1,3,5].map(i=>parseInt(h.slice(i,i+2),16));
@@ -245,18 +272,32 @@ function pal(prog,y,type){
   const L=lum(c), dark=(L+.05)/.064, white=1.05/(L+.05);
   return {bg:`rgb(${c})`, fg:dark>=white?'#14202a':'#fff', prac, base};
 }
-const rowKey=r=>r['Programmes']+'|'+yearOf(r['Module']);
+const ROM=['','I','II','III','IV','V','VI'];
+const partNum=r=>{const p=(r['Part']||'').trim().toUpperCase(), i=ROM.indexOf(p); return i>0?i:(+p>0?+p:yearOf(r['Module']))};
+const rowKey=r=>r['Programmes']+'|'+(r._rs?partNum(r):yearOf(r['Module']));
+const yr=r=>r._rs?partNum(r):yearOf(r['Module']);
+/* every line of a reschedule Name starts with INC: split on the text "INC" itself, no other separator needed */
+const incList=n=>(n||'').split(/(?=INC)/i).map(x=>x.trim().replace(/^[\s,;，、\/|]+|[\s,;，、\/|]+$/g,'')).filter(x=>/^INC/i.test(x));
+const wb=h=>h.replace(/,/g,',<wbr>');   /* allow line breaks after commas in long Requirements */
 const esc=t=>t.replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-function evHTML(e,idx,dayKey){
-  const n=e.cl.lanes.length, wd=100/n, r=e.rows[0], c=pal(r['Programmes'],yearOf(r['Module']),e.type), h=(e.e-e.s)*HPX-1;
-  const u=k=>esc([...new Set(e.rows.map(r=>r[k]).filter(x=>x&&x.toUpperCase()!=='NA'))].join('; '));
-  const prog=esc([...new Set(e.rows.map(r=>r['Programmes']))].join(', ')), rq=u('Requirements'), pr=u('Preparation Requirement'), st=e.rows.some(r=>r['Requirement Status']!=='Prepared');
-  const more=`<span class="more">${prog} · ${hm(e.s)}–${hm(e.e)}<br>Students: ${stu(e)}${pr?'<br>Preparation: '+pr:''}</span>`;
-  return `<button class="ev${c.prac?' prac':''}" data-k="${dayKey}:${idx}" style="background-color:${c.bg};color:${c.fg};border-left-color:${c.base};--b:${c.base};top:${(e.e>e.s?(e.s-START)*HPX:0)}px;height:${h}px;min-height:${h}px;left:calc(${e.lane*wd}% + 3px);width:calc(${wd}% - 6px);--l:calc(${e.lane*wd}% + 3px)"><span class="l"><b>${e.code}</b> ${esc(e.name||'')}</span><span class="l">${st?'<span class="np">Not prepared</span>':'<span class="ok">Prepared</span>'}</span><span class="l">${/practical/i.test(e.type)?`<span class="np">${esc(e.type)}</span>`:`<span class="ok">${esc(e.type||'Computer')}</span>`}</span>${rq?`<span class="l rq">Requirements: ${rq}</span>`:''}${more}</button>`;
+function rsBody(e){
+  const mods=new Set(e.rows.map(r=>r['Module'])).size, np=e.rows.some(r=>r['Requirement Status']!=='Prepared');
+  const det=e.rows.map(r=>{
+    const inc=incList(r['Name']), lines=inc.length?inc:[r['Name']].filter(Boolean);
+    return `<span class="rsh">${esc(r['Module'])} - ${esc(r['Total Student Number']||'0')} - ${esc(r['Requirement Status']||'–')}</span>`+lines.map(x=>`<span class="rsl">${esc(x)}</span>`).join('');
+  }).join('');
+  return `<span class="l"><b>Reschedule</b> ${esc(e.name)}</span><span class="l"><span class="${np?'np':'ok'}">${np?'Not prepared':'Prepared'}</span></span><span class="l"><span class="ok">${stu(e)} students · ${mods} module${mods>1?'s':''}</span></span><span class="more">${det}</span>`;
 }
-function chipHTML(e,key,i){const r=e.rows[0],c=pal(r['Programmes'],yearOf(r['Module']),e.type);return `<button class="chip${c.prac?' prac':''}" style="background-color:${c.bg};color:${c.fg};border-left:4px solid ${c.base};--b:${c.base}" data-k="${key}:${i}">${e.code}</button>`}
+function evHTML(e,idx,dayKey){
+  const n=e.cl.lanes.length, wd=100/n, r=e.rows[0], c=pal(r['Programmes'],yr(r),e.type), h=(e.e-e.s)*HPX-1;
+  const u=k=>esc([...new Set(e.rows.map(r=>r[k]).filter(x=>x&&x.toUpperCase()!=='NA'))].join('; '));
+  const prog=esc([...new Set(e.rows.map(r=>r['Programmes']))].join(', ')), rq=wb(u('Requirements')), pr=u('Preparation Requirement'), st=e.rows.some(r=>r['Requirement Status']!=='Prepared');
+  const more=`<span class="more">${prog} · ${hm(e.s)}–${hm(e.e)}<br>Students: ${stu(e)}${pr?'<br>Preparation: '+pr:''}</span>`;
+  return `<button class="ev${c.prac?' prac':''}" data-k="${dayKey}:${idx}" style="background-color:${c.bg};color:${c.fg};border-left-color:${c.base};--b:${c.base};top:${(e.e>e.s?(e.s-START)*HPX:0)}px;height:${h}px;min-height:${h}px;left:calc(${e.lane*wd}% + 3px);width:calc(${wd}% - 6px);--l:calc(${e.lane*wd}% + 3px)">${e.rs?rsBody(e):`<span class="l"><b>${e.code}</b> ${esc(e.name||'')}</span><span class="l">${st?'<span class="np">Not prepared</span>':'<span class="ok">Prepared</span>'}</span><span class="l">${/practical/i.test(e.type)?`<span class="np">${esc(e.type)}</span>`:`<span class="ok">${esc(e.type||'Computer')}</span>`}</span>${rq?`<span class="l rq">Requirements: ${rq}</span>`:''}${more}`}</button>`;
+}
+function chipHTML(e,key,i){const r=e.rows[0],c=pal(r['Programmes'],yr(r),e.type);return `<button class="chip${c.prac?' prac':''}" style="background-color:${c.bg};color:${c.fg};border-left:4px solid ${c.base};--b:${c.base}" data-k="${key}:${i}">${e.code}${e.rs?' · '+esc(e.name):''}</button>`}
 function renderLegend(){
-  const m={}; S.tt.forEach(r=>{const p=r['Programmes'],y=yearOf(r['Module']);m[p]=m[p]||{};m[p][y]=m[p][y]||{};m[p][y][/practical/i.test(r['Lab Type'])?'p':'c']=1});
+  const m={}; S.rs.forEach(r=>{m.Reschedule=m.Reschedule||{}; m.Reschedule[partNum(r)]={c:1}}); S.tt.forEach(r=>{const p=r['Programmes'],y=yearOf(r['Module']);m[p]=m[p]||{};m[p][y]=m[p][y]||{};m[p][y][/practical/i.test(r['Lab Type'])?'p':'c']=1});
   $('legend').innerHTML=Object.keys(m).sort().map(p=>`<div class="lg"><h3>${p}</h3>`+Object.keys(m[p]).sort().map(y=>{const o=m[p][y];
     const off=S.hide.has(p+'|'+y);
     return `<button class="lgi${off?' off':''}" role="checkbox" aria-checked="${!off}" data-hide="${p}|${y}"><span class="cb"></span><span class="sw2">${o.c?`<span class="sw" style="background-color:${pal(p,+y,'Computer').bg}"></span>`:''}${o.p?`<span class="sw st" style="background-color:${pal(p,+y,'Practical').bg};--b:${pal(p,+y,'Practical').base}"></span>`:''}</span><span class="lt">Part ${["","I","II","III","IV","V","VI"][+y]||y}</span></button>`}).join('')+'</div>').join('')
@@ -318,7 +359,18 @@ function render(){
 /* ---------- details dialog ---------- */
 function showDetail(k){
   const [dk,i]=k.split(':'), e=store[dk][+i]; if(!e) return;
-  const rows=e.rows.map(r=>`<dt>Module</dt><dd>${r['Module']} – ${r['Name']}</dd><dt>Programmes</dt><dd>${r['Programmes']||'–'}</dd><dt>Students</dt><dd>${r['Total Student Number']||'–'}</dd><dt>Preparation</dt><dd>${r['Preparation Requirement']||'–'}</dd><dt>Requirements</dt><dd>${r['Requirements']||'–'}</dd><dt>Status</dt><dd>${r['Requirement Status']||'–'}</dd>`).join('');
+  if(e.rs){
+    const hr='<hr style="grid-column:1/-1;width:100%;border:0;border-top:1px solid var(--line);margin:4px 0">';
+    const rows=e.rows.map((r,j)=>{
+      const inc=incList(r['Name']), rq=(r['Requirements']||'').trim();
+      return (j?hr:'')+`<dt>Module</dt><dd>${esc(r['Module'])}</dd><dt>Students</dt><dd>${esc(r['Total Student Number']||'–')}</dd><dt>Status</dt><dd>${esc(r['Requirement Status']||'–')}</dd>`
+        +(/^(|no|na|n\/a|none)$/i.test(rq)?'':`<dt>Requirements</dt><dd>${wb(esc(rq))}</dd>`)
+        +`<dt>${inc.length>1?'INC numbers':'INC number'}</dt><dd>${inc.length?inc.map(esc).join('<br>'):esc(r['Name']||'–')}</dd>`;
+    }).join('');
+    $('dlg').innerHTML=`<h2>Reschedule – ${esc(e.name)}</h2><dl><dt>Date</dt><dd>${DN[(e.date.getDay()+6)%7]} ${ord(e.date.getDate())} ${MN[e.date.getMonth()]} ${e.date.getFullYear()}</dd><dt>Time</dt><dd>${hm(e.s)} – ${hm(e.e)}</dd><dt>Week</dt><dd>${e.w.label} (${e.w.sem})</dd>${rows}</dl><p style="text-align:right;margin:14px 0 0"><button id="cls" class="close">Close</button></p>`;
+    $('ov').classList.add('show'); $('cls').focus(); return;
+  }
+  const rows=e.rows.map(r=>`<dt>Module</dt><dd>${r['Module']} – ${r['Name']}</dd><dt>Programmes</dt><dd>${r['Programmes']||'–'}</dd><dt>Students</dt><dd>${r['Total Student Number']||'–'}</dd><dt>Preparation</dt><dd>${wb(esc(r['Preparation Requirement']||'–'))}</dd><dt>Requirements</dt><dd>${wb(esc(r['Requirements']||'–'))}</dd><dt>Status</dt><dd>${r['Requirement Status']||'–'}</dd>`).join('');
   $('dlg').innerHTML=`<h2>${e.code}${e.name?' – '+e.name:''}</h2><dl><dt>Date</dt><dd>${DN[(e.date.getDay()+6)%7]} ${ord(e.date.getDate())} ${MN[e.date.getMonth()]} ${e.date.getFullYear()}</dd><dt>Time</dt><dd>${hm(e.s)} – ${hm(e.e)}</dd><dt>Week</dt><dd>${e.w.label} (${e.w.sem})</dd><dt>Lab type</dt><dd>${e.type||'–'}</dd>${rows}</dl><p style="text-align:right;margin:14px 0 0"><button id="cls" class="close">Close</button></p>`;
   $('ov').classList.add('show'); $('cls').focus();
 }
@@ -451,8 +503,8 @@ document.addEventListener('keydown',e=>{ if(e.key==='Escape') closeDlg() });
 async function init(){
   try{
     const get=async(u)=>{const r=await fetch(u); if(!r.ok) throw new Error(u+' ('+r.status+')'); return r.text()};
-    const [p,t,c]=await Promise.all([get('Week-Pattern-AY2627.csv'),get('AICE-Timetable-AY2627.csv'),get('config.json').catch(()=>'{}')]);
-    loadPattern(p); S.tt=toObjs(parseCSV(t),true); Object.assign(S.cfg,JSON.parse(c||'{}')); S.progs=[...new Set(S.tt.map(r=>r['Programmes']))];
+    const [p,t,c,x]=await Promise.all([get('Week-Pattern-AY2627.csv'),get('AICE-Timetable-AY2627.csv'),get('config.json').catch(()=>'{}'),get('reschedule.csv').catch(()=>'')]);
+    loadPattern(p); S.rs=loadRs(x); S.tt=toObjs(parseCSV(t),true); Object.assign(S.cfg,JSON.parse(c||'{}')); S.progs=[...new Set(S.tt.map(r=>r['Programmes']))];
   }catch(err){
     $('title').textContent='Could not load data';
     $('status').textContent=err.message+' – open this page through a web server (e.g. python -m http.server), not by double-clicking the file.';
