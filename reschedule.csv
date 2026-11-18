@@ -16,4 +16,4 @@ S1,I,ELEC General,Reschedule,,Wednesday,12,17,1,No,Prepared,0,0,0,0,0,0,0,1,0,0,
 S1,I,AICE1002-S3 General,Reschedule,,Wednesday,14,17,1,No,Prepared,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
 S1,I,T13 ELEC General,Reschedule,,Thursday,14,17,1,No,Prepared,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
 S1,I,AICE2003-Lab1,Reschedule,AICE2003-Soldering General,Thursday,10,13,1,No,Prepared,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
-S1,I,AICE2003-Lab1,Reschedule,INC7113577 AICE2003 Ilmatto testing,Wednesday,14,17,1,No,Prepared,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
+S1,I,AICE2003-Ilmatto testing,Reschedule,INC7113577,Wednesday,14,17,1,No,Prepared,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
